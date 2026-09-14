@@ -1,4 +1,5 @@
-import { Tunnel } from "cloudflared";
+import { spawn, ChildProcess } from "node:child_process";
+import { bin } from "cloudflared";
 
 export interface TunnelResult {
   url: string;
@@ -8,37 +9,58 @@ export interface TunnelResult {
 export function startTunnel(localPort: number): Promise<TunnelResult> {
   return new Promise((resolve, reject) => {
     const localUrl = `http://127.0.0.1:${localPort}`;
-    const tunnel = Tunnel.quick(localUrl);
+    const proc: ChildProcess = spawn(bin, ["tunnel", "--url", localUrl], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
     let resolved = false;
 
     const timeout = setTimeout(() => {
       if (!resolved) {
-        tunnel.stop();
-        reject(new Error("Timeout waiting for Cloudflare Tunnel to establish (15s)"));
+        proc.kill();
+        reject(new Error("Timeout waiting for Cloudflare Tunnel to establish (25s)"));
       }
-    }, 15000);
+    }, 25000);
 
-    tunnel.once("url", (url: string) => {
-      resolved = true;
-      clearTimeout(timeout);
-      resolve({
-        url,
-        stop: () => tunnel.stop(),
-      });
-    });
+    const handleOutput = (data: Buffer) => {
+      const text = data.toString();
 
-    tunnel.once("error", (err: Error) => {
+      // 匹配真正形如 https://word-word-word-word.trycloudflare.com 的临时域名
+      // 必须排除 api.trycloudflare.com
+      const matches = text.match(/https:\/\/([a-z0-9-]+)\.trycloudflare\.com/g);
+      if (matches) {
+        for (const matchUrl of matches) {
+          if (!matchUrl.includes("api.trycloudflare.com")) {
+            resolved = true;
+            clearTimeout(timeout);
+            resolve({
+              url: matchUrl,
+              stop: () => {
+                try {
+                  proc.kill("SIGTERM");
+                } catch {}
+              },
+            });
+            return;
+          }
+        }
+      }
+    };
+
+    proc.stdout?.on("data", handleOutput);
+    proc.stderr?.on("data", handleOutput);
+
+    proc.on("error", (err) => {
       if (!resolved) {
         clearTimeout(timeout);
         reject(err);
       }
     });
 
-    tunnel.on("exit", (code: number | null) => {
+    proc.on("exit", (code) => {
       if (!resolved) {
         clearTimeout(timeout);
-        reject(new Error(`Cloudflare tunnel exited prematurely with code ${code}`));
+        reject(new Error(`Cloudflare tunnel process exited early with code ${code}`));
       }
     });
   });

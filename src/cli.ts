@@ -67,9 +67,16 @@ program
     console.log(chalk.bold("  💻 挂载的命令:         ") + chalk.magenta(`${options.cmd} ${options.args.join(" ")}`));
     console.log();
 
-    console.log(chalk.bold("  📱 手机扫码直达 (Scan to Connect):"));
+    console.log(chalk.bold("  📱 手机扫码直达 (Scan to Connect):\n"));
     qrcode.generate(accessUrlWithToken, { small: true }, (qr) => {
-      console.log(qr);
+      // 增加标准的留白边界，使用纯 Unicode 字符，确保所有终端与手机摄像头秒识
+      const lines = qr.split("\n");
+      const pad = "    ";
+      console.log(pad + "█".repeat(lines[0].length + 4));
+      for (const line of lines) {
+        console.log(pad + "██" + line + "██");
+      }
+      console.log(pad + "█".repeat(lines[0].length + 4) + "\n");
     });
 
     console.log(chalk.gray("提示: 按 Ctrl+C 随时关闭服务并断开连接。\n"));
