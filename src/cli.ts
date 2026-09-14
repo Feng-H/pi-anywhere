@@ -16,8 +16,9 @@ program
   .option("-p, --port <number>", "Local port to bind", "0")
   .option("--pin <string>", "Custom security PIN / password")
   .option("--no-tunnel", "Do not create Cloudflare Tunnel (local network only)")
-  .option("--cmd <command>", "Command to run", "pi")
-  .option("--args <args...>", "Arguments for the command", ["-c"])
+  .option("--session <name>", "tmux session name to attach-or-create (desktop & phone share it)", "pi")
+  .option("--cmd <command>", "Direct mode: run this command instead of tmux session")
+  .option("--args <args...>", "Arguments for the direct-mode command", ["-c"])
   .allowUnknownOption(true)
   .action(async (options) => {
     // Generate 6-digit random PIN if not specified
@@ -26,10 +27,12 @@ program
 
     console.log(chalk.bold.cyan("\n🚀 Starting Pi Anywhere...\n"));
 
-    const terminalManager = new TerminalManager({
-      command: options.cmd,
-      args: options.args,
-    });
+    const useTmux = !options.cmd;
+    const terminalManager = new TerminalManager(
+      useTmux
+        ? { tmuxSession: options.session }
+        : { command: options.cmd, args: options.args }
+    );
 
     const { server, listen } = createServer({
       port,
@@ -64,7 +67,11 @@ program
 
     console.log(chalk.bold("  🔗 访问网址 (Web URL): ") + chalk.underline.cyan(accessUrlWithToken));
     console.log(chalk.bold("  🔑 安全 PIN 码:        ") + chalk.bold.yellow(pin));
-    console.log(chalk.bold("  💻 挂载的命令:         ") + chalk.magenta(`${options.cmd} ${options.args.join(" ")}`));
+    if (terminalManager.mode === "tmux") {
+      console.log(chalk.bold("  💻 会话模式:           ") + chalk.magenta(`tmux attach-or-create → "${options.session}" (电脑与手机共享同一个 Pi 会话)`));
+    } else {
+      console.log(chalk.bold("  💻 挂载的命令:         ") + chalk.magenta(`${options.cmd} ${options.args.join(" ")}`));
+    }
     console.log();
 
     console.log(chalk.bold("  📱 手机扫码直达 (Scan to Connect):\n"));

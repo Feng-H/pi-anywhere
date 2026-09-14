@@ -20,12 +20,22 @@
       flex-direction: column;
     }
 
+    #reconnect-banner {
+      display: none;
+      background: #7c2d12;
+      color: #fed7aa;
+      text-align: center;
+      padding: 6px;
+      font-size: 13px;
+      z-index: 200;
+    }
+
     #auth-overlay {
       position: fixed;
       inset: 0;
       background: rgba(18, 18, 18, 0.95);
       z-index: 1000;
-      display: flex;
+      display: none;
       align-items: center;
       justify-content: center;
       backdrop-filter: blur(8px);
@@ -61,10 +71,17 @@
       text-align: center;
       letter-spacing: 4px;
       outline: none;
-      margin-bottom: 16px;
+      margin-bottom: 8px;
     }
     .auth-box input:focus {
       border-color: #3b82f6;
+    }
+    .auth-error {
+      color: #ef4444;
+      font-size: 0.8rem;
+      min-height: 18px;
+      margin-bottom: 8px;
+      visibility: hidden;
     }
     .auth-box button {
       width: 100%;
@@ -79,6 +96,10 @@
     }
     .auth-box button:hover {
       background: #1d4ed8;
+    }
+    .auth-box button:disabled {
+      background: #1e40af;
+      opacity: 0.6;
     }
 
     #terminal-container {
@@ -117,6 +138,7 @@
       user-select: none;
       touch-action: manipulation;
       cursor: pointer;
+      flex-shrink: 0;
     }
     .m-btn:active, .m-btn.active {
       background: #3b82f6;
@@ -141,15 +163,21 @@
     .status-dot.connected {
       background: #22c55e;
     }
+    .status-dot.connecting {
+      background: #eab308;
+    }
   </style>
 </head>
 <body>
 
+<div id="reconnect-banner">⏳ 连接已断开，正在重连… (服务端可能已关闭或网络波动)</div>
+
 <div id="auth-overlay">
   <div class="auth-box">
     <h2>🔒 Pi Anywhere</h2>
-    <p>请输入控制台输出的访问密码或 PIN 码</p>
-    <input type="password" id="pin-input" placeholder="PIN / Password" autocomplete="current-password" autofocus />
+    <p id="auth-hint">请输入控制台输出的访问密码或 PIN 码</p>
+    <input type="password" id="pin-input" placeholder="PIN / Password" autocomplete="current-password">
+    <div class="auth-error" id="auth-error"></div>
     <button id="auth-btn">解锁并连接</button>
   </div>
 </div>
@@ -174,7 +202,10 @@
   const authOverlay = document.getElementById("auth-overlay");
   const pinInput = document.getElementById("pin-input");
   const authBtn = document.getElementById("auth-btn");
+  const authError = document.getElementById("auth-error");
+  const authHint = document.getElementById("auth-hint");
   const statusDot = document.getElementById("status-dot");
+  const reconnectBanner = document.getElementById("reconnect-banner");
   const btnCtrl = document.getElementById("btn-ctrl");
   let ctrlActive = false;
 
@@ -215,14 +246,48 @@
   });
 
   let ws = null;
+  let reconnectTimer = null;
+
+  function showAuth(hint) {
+    authHint.textContent = hint || "请输入控制台输出的访问密码或 PIN 码";
+    authError.style.visibility = "hidden";
+    authOverlay.style.display = "flex";
+    setTimeout(() => pinInput.focus(), 50);
+  }
+
+  function hideAuth() {
+    authOverlay.style.display = "none";
+  }
+
+  async function validateToken(t) {
+    try {
+      const res = await fetch(`/check?token=${encodeURIComponent(t)}`, { cache: "no-store" });
+      const data = await res.json();
+      return data.ok === true;
+    } catch {
+      return false;
+    }
+  }
 
   function connect() {
+    if (!token) {
+      showAuth();
+      return;
+    }
+    clearTimeout(reconnectTimer);
+    statusDot.classList.add("connecting");
+
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${location.host}/ws?token=${encodeURIComponent(token)}`;
     ws = new WebSocket(wsUrl);
 
+    let opened = false;
+
     ws.onopen = () => {
-      authOverlay.style.display = "none";
+      opened = true;
+      hideAuth();
+      reconnectBanner.style.display = "none";
+      statusDot.classList.remove("connecting");
       statusDot.classList.add("connected");
       term.focus();
       sendResize();
@@ -232,20 +297,27 @@
       term.write(event.data);
     };
 
-    ws.onclose = (e) => {
-      statusDot.classList.remove("connected");
-      if (e.code === 4001) {
-        localStorage.removeItem("pi_token");
-        authOverlay.style.display = "flex";
-        pinInput.focus();
+    ws.onclose = async (e) => {
+      statusDot.classList.remove("connected", "connecting");
+      if (opened) {
+        // Was connected, then dropped: network blip or server shutdown. Retry.
+        reconnectBanner.style.display = "block";
+        reconnectTimer = setTimeout(connect, 3000);
       } else {
-        term.write("\r\n\x1b[31m[Connection disconnected. Reconnecting in 3s...]\x1b[0m\r\n");
-        setTimeout(connect, 3000);
+        // Never even opened: either bad token or server unreachable. Distinguish.
+        const valid = await validateToken(token);
+        if (valid) {
+          reconnectBanner.style.display = "block";
+          reconnectTimer = setTimeout(connect, 3000);
+        } else {
+          localStorage.removeItem("pi_token");
+          showAuth("会话已失效或密码错误，请重新输入");
+        }
       }
     };
 
     ws.onerror = () => {
-      statusDot.classList.remove("connected");
+      statusDot.classList.remove("connected", "connecting");
     };
   }
 
@@ -313,20 +385,34 @@
     if (e.key === "Enter") submitPin();
   });
 
-  function submitPin() {
+  async function submitPin() {
     const val = pinInput.value.trim();
-    if (val) {
+    if (!val) return;
+    authBtn.disabled = true;
+    authError.style.visibility = "hidden";
+    const ok = await validateToken(val);
+    authBtn.disabled = false;
+    if (ok) {
       token = val;
       localStorage.setItem("pi_token", token);
+      hideAuth();
       connect();
+    } else {
+      authError.textContent = "密码错误 / 服务不可用，请核对控制台显示的 PIN 码";
+      authError.style.visibility = "visible";
     }
   }
 
-  if (token) {
-    connect();
-  } else {
-    authOverlay.style.display = "flex";
-  }
+  // Boot: validate saved/URL token first, then connect or ask for PIN.
+  (async () => {
+    if (token && (await validateToken(token))) {
+      connect();
+    } else {
+      localStorage.removeItem("pi_token");
+      token = "";
+      showAuth();
+    }
+  })();
 </script>
 </body>
 </html>

@@ -18,6 +18,15 @@ export function createServer(options: ServerOptions) {
   const { port, pin, terminalManager } = options;
 
   const server = http.createServer((req, res) => {
+    // Token validation endpoint for the frontend
+    if (req.url?.split("?")[0] === "/check") {
+      const url = new URL(req.url || "/", `http://${req.headers.host}`);
+      const ok = (url.searchParams.get("token") || "") === pin;
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok }));
+      return;
+    }
+
     // Serve Web Terminal static files
     let filePath = path.join(__dirname, "public", "index.html");
     if (!fs.existsSync(filePath)) {
