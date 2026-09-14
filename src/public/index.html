@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pi Anywhere Terminal</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #121212;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(18, 18, 18, 0.95);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(8px);
+    }
+    .auth-box {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 360px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .auth-box h2 {
+      color: #fff;
+      margin-bottom: 8px;
+      font-size: 1.25rem;
+    }
+    .auth-box p {
+      color: #888;
+      font-size: 0.875rem;
+      margin-bottom: 20px;
+    }
+    .auth-box input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #2a2a2a;
+      color: #fff;
+      font-size: 1.1rem;
+      text-align: center;
+      letter-spacing: 4px;
+      outline: none;
+      margin-bottom: 16px;
+    }
+    .auth-box input:focus {
+      border-color: #3b82f6;
+    }
+    .auth-box button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 6px;
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .auth-box button:hover {
+      background: #1d4ed8;
+    }
+
+    #terminal-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #mobile-bar {
+      height: 48px;
+      background: #18181b;
+      border-top: 1px solid #27272a;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 6px;
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      z-index: 100;
+    }
+    #mobile-bar::-webkit-scrollbar {
+      display: none;
+    }
+    .m-btn {
+      background: #27272a;
+      color: #f4f4f5;
+      border: 1px solid #3f3f46;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      user-select: none;
+      touch-action: manipulation;
+      cursor: pointer;
+    }
+    .m-btn:active, .m-btn.active {
+      background: #3b82f6;
+      color: #ffffff;
+      border-color: #60a5fa;
+    }
+    .m-btn.special {
+      background: #312e81;
+      border-color: #4338ca;
+      color: #e0e7ff;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      margin-left: auto;
+      margin-right: 4px;
+      flex-shrink: 0;
+    }
+    .status-dot.connected {
+      background: #22c55e;
+    }
+  </style>
+</head>
+<body>
+
+<div id="auth-overlay">
+  <div class="auth-box">
+    <h2>🔒 Pi Anywhere</h2>
+    <p>请输入控制台输出的访问密码或 PIN 码</p>
+    <input type="password" id="pin-input" placeholder="PIN / Password" autocomplete="current-password" autofocus />
+    <button id="auth-btn">解锁并连接</button>
+  </div>
+</div>
+
+<div id="terminal-container"></div>
+
+<div id="mobile-bar">
+  <button class="m-btn" data-key="ESC">Esc</button>
+  <button class="m-btn" data-key="TAB">Tab</button>
+  <button class="m-btn" id="btn-ctrl">Ctrl</button>
+  <button class="m-btn" data-key="UP">↑</button>
+  <button class="m-btn" data-key="DOWN">↓</button>
+  <button class="m-btn" data-key="LEFT">←</button>
+  <button class="m-btn" data-key="RIGHT">→</button>
+  <button class="m-btn special" data-cmd="/tree">/tree</button>
+  <button class="m-btn special" data-cmd="/resume">/resume</button>
+  <span class="status-dot" id="status-dot" title="Connection status"></span>
+</div>
+
+<script>
+  let token = localStorage.getItem("pi_token") || "";
+  const authOverlay = document.getElementById("auth-overlay");
+  const pinInput = document.getElementById("pin-input");
+  const authBtn = document.getElementById("auth-btn");
+  const statusDot = document.getElementById("status-dot");
+  const btnCtrl = document.getElementById("btn-ctrl");
+  let ctrlActive = false;
+
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get("token")) {
+    token = urlParams.get("token");
+    localStorage.setItem("pi_token", token);
+  }
+
+  const term = new Terminal({
+    cursorBlink: true,
+    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+    fontSize: window.innerWidth < 768 ? 13 : 14,
+    theme: {
+      background: "#121212",
+      foreground: "#f4f4f5",
+      cursor: "#f4f4f5",
+      black: "#18181b",
+      red: "#ef4444",
+      green: "#22c55e",
+      yellow: "#eab308",
+      blue: "#3b82f6",
+      magenta: "#a855f7",
+      cyan: "#06b6d4",
+      white: "#f4f4f5"
+    }
+  });
+
+  const fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.loadAddon(new WebLinksAddon.WebLinksAddon());
+  term.open(document.getElementById("terminal-container"));
+  fitAddon.fit();
+
+  window.addEventListener("resize", () => {
+    fitAddon.fit();
+    sendResize();
+  });
+
+  let ws = null;
+
+  function connect() {
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${location.host}/ws?token=${encodeURIComponent(token)}`;
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      authOverlay.style.display = "none";
+      statusDot.classList.add("connected");
+      term.focus();
+      sendResize();
+    };
+
+    ws.onmessage = (event) => {
+      term.write(event.data);
+    };
+
+    ws.onclose = (e) => {
+      statusDot.classList.remove("connected");
+      if (e.code === 4001) {
+        localStorage.removeItem("pi_token");
+        authOverlay.style.display = "flex";
+        pinInput.focus();
+      } else {
+        term.write("\r\n\x1b[31m[Connection disconnected. Reconnecting in 3s...]\x1b[0m\r\n");
+        setTimeout(connect, 3000);
+      }
+    };
+
+    ws.onerror = () => {
+      statusDot.classList.remove("connected");
+    };
+  }
+
+  function sendResize() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: "resize",
+        cols: term.cols,
+        rows: term.rows
+      }));
+    }
+  }
+
+  term.onData(data => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      if (ctrlActive) {
+        ctrlActive = false;
+        btnCtrl.classList.remove("active");
+        if (data.length === 1) {
+          const code = data.toUpperCase().charCodeAt(0);
+          if (code >= 65 && code <= 90) {
+            ws.send(JSON.stringify({ type: "data", data: String.fromCharCode(code - 64) }));
+            return;
+          }
+        }
+      }
+      ws.send(JSON.stringify({ type: "data", data }));
+    }
+  });
+
+  btnCtrl.addEventListener("click", () => {
+    ctrlActive = !ctrlActive;
+    btnCtrl.classList.toggle("active", ctrlActive);
+  });
+
+  document.querySelectorAll("#mobile-bar button[data-key]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-key");
+      let seq = "";
+      if (key === "ESC") seq = "\x1b";
+      else if (key === "TAB") seq = "\t";
+      else if (key === "UP") seq = "\x1b[A";
+      else if (key === "DOWN") seq = "\x1b[B";
+      else if (key === "RIGHT") seq = "\x1b[C";
+      else if (key === "LEFT") seq = "\x1b[D";
+      if (seq && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "data", data: seq }));
+        term.focus();
+      }
+    });
+  });
+
+  document.querySelectorAll("#mobile-bar button[data-cmd]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const cmd = btn.getAttribute("data-cmd") + "\r";
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "data", data: cmd }));
+        term.focus();
+      }
+    });
+  });
+
+  authBtn.addEventListener("click", submitPin);
+  pinInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitPin();
+  });
+
+  function submitPin() {
+    const val = pinInput.value.trim();
+    if (val) {
+      token = val;
+      localStorage.setItem("pi_token", token);
+      connect();
+    }
+  }
+
+  if (token) {
+    connect();
+  } else {
+    authOverlay.style.display = "flex";
+  }
+</script>
+</body>
+</html>

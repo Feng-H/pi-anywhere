@@ -1,0 +1,42 @@
+{
+  "name": "pi-anywhere",
+  "version": "0.1.0",
+  "description": "Instant remote web access for Pi Agent behind NAT / firewalls via Cloudflare Tunnel",
+  "type": "module",
+  "bin": {
+    "pi-anywhere": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc && mkdir -p dist/public && cp -r src/public/* dist/public/",
+    "dev": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "pi",
+    "pi-agent",
+    "coding-agent",
+    "terminal",
+    "web-terminal",
+    "cloudflared",
+    "tunnel",
+    "nat-traversal"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^6.0.0",
+    "cloudflared": "^0.7.3",
+    "commander": "^15.0.0",
+    "node-pty": "^1.1.0",
+    "qrcode-terminal": "^0.12.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
