@@ -25,22 +25,22 @@
 
 ### 1. 安装扩展到 Pi
 
-在终端执行：
+**方式 A：从 GitHub 安装（推荐，无需 npm 账号）：**
+
+```bash
+pi install git:github.com/Feng-H/pi-anywhere
+```
+
+**方式 B：从 npm 安装：**
+
+```bash
+pi install npm:pi-anywhere
+```
+
+**方式 C：本地路径安装：**
 
 ```bash
 pi install /path/to/pi-anywhere
-# 或发布后通过 npm 安装：
-# pi install npm:pi-anywhere
-```
-
-或者在你的 `~/.pi/agent/settings.json` 中配置：
-
-```json
-{
-  "packages": [
-    "/Users/yourname/pidev/pi-anywhere"
-  ]
-}
 ```
 
 ### 2. 随时随地唤起
