@@ -1,418 +1,761 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pi Anywhere Terminal</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Pi Anywhere - 远程工作台</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body, html {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #121212;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    :root {
+      --bg-primary: #0a0d14;
+      --bg-secondary: #121824;
+      --bg-card: #182030;
+      --bg-input: #1b2438;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: #3b82f6;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --user-bubble: #1e3a8a;
+      --code-bg: #0d1117;
+      --safe-bottom: env(safe-area-inset-bottom, 16px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      height: 100dvh;
       display: flex;
       flex-direction: column;
-    }
-
-    #reconnect-banner {
-      display: none;
-      background: #7c2d12;
-      color: #fed7aa;
-      text-align: center;
-      padding: 6px;
-      font-size: 13px;
-      z-index: 200;
-    }
-
-    #auth-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(18, 18, 18, 0.95);
-      z-index: 1000;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(8px);
-    }
-    .auth-box {
-      background: #1e1e1e;
-      border: 1px solid #333;
-      border-radius: 12px;
-      padding: 24px;
-      width: 90%;
-      max-width: 360px;
-      text-align: center;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    }
-    .auth-box h2 {
-      color: #fff;
-      margin-bottom: 8px;
-      font-size: 1.25rem;
-    }
-    .auth-box p {
-      color: #888;
-      font-size: 0.875rem;
-      margin-bottom: 20px;
-    }
-    .auth-box input {
-      width: 100%;
-      padding: 12px;
-      border-radius: 6px;
-      border: 1px solid #444;
-      background: #2a2a2a;
-      color: #fff;
-      font-size: 1.1rem;
-      text-align: center;
-      letter-spacing: 4px;
-      outline: none;
-      margin-bottom: 8px;
-    }
-    .auth-box input:focus {
-      border-color: #3b82f6;
-    }
-    .auth-error {
-      color: #ef4444;
-      font-size: 0.8rem;
-      min-height: 18px;
-      margin-bottom: 8px;
-      visibility: hidden;
-    }
-    .auth-box button {
-      width: 100%;
-      padding: 12px;
-      border-radius: 6px;
-      border: none;
-      background: #2563eb;
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .auth-box button:hover {
-      background: #1d4ed8;
-    }
-    .auth-box button:disabled {
-      background: #1e40af;
-      opacity: 0.6;
-    }
-
-    #terminal-container {
-      flex: 1;
-      width: 100%;
-      height: 100%;
       overflow: hidden;
-      position: relative;
     }
 
-    #mobile-bar {
-      height: 48px;
-      background: #18181b;
-      border-top: 1px solid #27272a;
+    /* 顶部导航栏 */
+    header {
+      flex-shrink: 0;
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 16px;
       display: flex;
       align-items: center;
-      padding: 0 8px;
-      gap: 6px;
-      overflow-x: auto;
-      white-space: nowrap;
-      -webkit-overflow-scrolling: touch;
-      z-index: 100;
+      justify-content: space-between;
+      z-index: 10;
     }
-    #mobile-bar::-webkit-scrollbar {
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .app-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-green);
+    }
+    .dot.thinking {
+      background: var(--accent-amber);
+      animation: pulse 1.2s infinite;
+    }
+    .dot.offline {
+      background: var(--accent-red);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
+    }
+
+    .model-tag {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 聊天消息区 */
+    #messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .message-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .message-wrapper.user {
+      align-items: flex-end;
+    }
+
+    .message-wrapper.assistant,
+    .message-wrapper.system {
+      align-items: flex-start;
+    }
+
+    .bubble {
+      max-width: 90%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .user .bubble {
+      background-color: var(--user-bubble);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .assistant .bubble {
+      background-color: var(--bg-card);
+      color: var(--text-primary);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .system .bubble {
+      background: transparent;
+      border: 1px dashed var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin: 0 auto;
+      text-align: center;
+      border-radius: 8px;
+      padding: 4px 12px;
+    }
+
+    /* Markdown 元素样式 */
+    .bubble p {
+      margin-bottom: 8px;
+    }
+    .bubble p:last-child {
+      margin-bottom: 0;
+    }
+
+    .bubble pre {
+      background-color: var(--code-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px;
+      overflow-x: auto;
+      margin: 8px 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .bubble code {
+      background-color: rgba(255, 255, 255, 0.08);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .bubble pre code {
+      background-color: transparent;
+      padding: 0;
+    }
+
+    /* 工具调用折叠栏 */
+    .tool-box {
+      width: 100%;
+      margin: 6px 0;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 0.82rem;
+    }
+
+    .tool-header {
+      padding: 6px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.02);
+      user-select: none;
+    }
+
+    .tool-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .tool-title .tool-tag {
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+
+    .tool-body {
+      display: none;
+      padding: 8px 10px;
+      border-top: 1px solid var(--border-color);
+      background: var(--code-bg);
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+    }
+
+    .tool-box.open .tool-body {
+      display: block;
+    }
+
+    /* 打字机光标 */
+    .typing-cursor {
+      display: inline-block;
+      width: 6px;
+      height: 14px;
+      background-color: var(--accent-blue);
+      vertical-align: middle;
+      margin-left: 4px;
+      animation: blink 0.9s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* 快捷指令条 */
+    .quick-actions {
+      display: flex;
+      gap: 8px;
+      padding: 6px 12px;
+      overflow-x: auto;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      white-space: nowrap;
+      scrollbar-width: none;
+    }
+    .quick-actions::-webkit-scrollbar {
       display: none;
     }
-    .m-btn {
-      background: #27272a;
-      color: #f4f4f5;
-      border: 1px solid #3f3f46;
-      border-radius: 6px;
-      padding: 6px 12px;
-      font-size: 13px;
-      font-weight: 600;
-      font-family: inherit;
-      user-select: none;
-      touch-action: manipulation;
+
+    .action-btn {
+      padding: 4px 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
       cursor: pointer;
+    }
+    .action-btn:active {
+      background: var(--bg-input);
+      color: var(--text-primary);
+    }
+
+    /* 底部输入框 */
+    footer {
       flex-shrink: 0;
+      background-color: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      padding: 8px 12px calc(8px + var(--safe-bottom));
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      z-index: 10;
     }
-    .m-btn:active, .m-btn.active {
-      background: #3b82f6;
-      color: #ffffff;
-      border-color: #60a5fa;
+
+    .input-container {
+      flex: 1;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      transition: border-color 0.2s;
     }
-    .m-btn.special {
-      background: #312e81;
-      border-color: #4338ca;
-      color: #e0e7ff;
+
+    .input-container:focus-within {
+      border-color: var(--border-focus);
     }
-    .status-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
+
+    #chat-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      resize: none;
+      max-height: 120px;
+      line-height: 1.4;
+      font-family: inherit;
+    }
+
+    #chat-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .action-circle-btn {
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
-      background: #ef4444;
-      margin-left: auto;
-      margin-right: 4px;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background-color: var(--accent-blue);
+      color: #fff;
+      font-size: 1.1rem;
+      transition: all 0.2s;
       flex-shrink: 0;
     }
-    .status-dot.connected {
-      background: #22c55e;
+
+    .action-circle-btn.abort {
+      background-color: var(--accent-red);
     }
-    .status-dot.connecting {
-      background: #eab308;
+
+    .action-circle-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* 浮动回到底部按钮 */
+    #scroll-down-btn {
+      display: none;
+      position: absolute;
+      right: 16px;
+      bottom: 90px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 20;
     }
   </style>
 </head>
 <body>
 
-<div id="reconnect-banner">⏳ 连接已断开，正在重连… (服务端可能已关闭或网络波动)</div>
+  <!-- 顶部导航 -->
+  <header>
+    <div class="header-left">
+      <span class="app-title">Pi Anywhere</span>
+      <div id="connection-badge" class="badge-status">
+        <span id="connection-dot" class="dot"></span>
+        <span id="connection-text">已连接</span>
+      </div>
+    </div>
+    <div class="model-tag" id="model-display">...</div>
+  </header>
 
-<div id="auth-overlay">
-  <div class="auth-box">
-    <h2>🔒 Pi Anywhere</h2>
-    <p id="auth-hint">请输入控制台输出的访问密码或 PIN 码</p>
-    <input type="password" id="pin-input" placeholder="PIN / Password" autocomplete="current-password">
-    <div class="auth-error" id="auth-error"></div>
-    <button id="auth-btn">解锁并连接</button>
+  <!-- 消息内容区 -->
+  <div id="messages-container"></div>
+
+  <!-- 回到底部浮钮 -->
+  <button id="scroll-down-btn" onclick="scrollToBottom(true)">↓</button>
+
+  <!-- 快捷指令栏 -->
+  <div class="quick-actions">
+    <button class="action-btn" onclick="insertPrompt('/help')">/help</button>
+    <button class="action-btn" onclick="insertPrompt('/compact')">/compact</button>
+    <button class="action-btn" onclick="insertPrompt('/tree')">/tree</button>
+    <button class="action-btn" onclick="sendPrompt('请继续')">请继续</button>
+    <button class="action-btn" onclick="sendPrompt('帮我运行测试并检查结果')">运行测试</button>
   </div>
-</div>
 
-<div id="terminal-container"></div>
+  <!-- 底部输入栏 -->
+  <footer>
+    <div class="input-container">
+      <textarea id="chat-input" rows="1" placeholder="与 Pi 对话，或输入 /命令..."></textarea>
+    </div>
+    <button id="send-btn" class="action-circle-btn" onclick="handleSendAction()">
+      <span id="send-icon">↑</span>
+    </button>
+  </footer>
 
-<div id="mobile-bar">
-  <button class="m-btn" data-key="ESC">Esc</button>
-  <button class="m-btn" data-key="TAB">Tab</button>
-  <button class="m-btn" id="btn-ctrl">Ctrl</button>
-  <button class="m-btn" data-key="UP">↑</button>
-  <button class="m-btn" data-key="DOWN">↓</button>
-  <button class="m-btn" data-key="LEFT">←</button>
-  <button class="m-btn" data-key="RIGHT">→</button>
-  <button class="m-btn special" data-cmd="/tree">/tree</button>
-  <button class="m-btn special" data-cmd="/resume">/resume</button>
-  <span class="status-dot" id="status-dot" title="Connection status"></span>
-</div>
+  <script>
+    // 基础状态
+    let ws = null;
+    let isIdle = true;
+    let activeAssistantMsgId = null;
+    let activeAssistantText = "";
+    let autoScroll = true;
 
-<script>
-  let token = localStorage.getItem("pi_token") || "";
-  const authOverlay = document.getElementById("auth-overlay");
-  const pinInput = document.getElementById("pin-input");
-  const authBtn = document.getElementById("auth-btn");
-  const authError = document.getElementById("auth-error");
-  const authHint = document.getElementById("auth-hint");
-  const statusDot = document.getElementById("status-dot");
-  const reconnectBanner = document.getElementById("reconnect-banner");
-  const btnCtrl = document.getElementById("btn-ctrl");
-  let ctrlActive = false;
+    const messagesContainer = document.getElementById("messages-container");
+    const chatInput = document.getElementById("chat-input");
+    const sendBtn = document.getElementById("send-btn");
+    const sendIcon = document.getElementById("send-icon");
+    const connectionDot = document.getElementById("connection-dot");
+    const connectionText = document.getElementById("connection-text");
+    const modelDisplay = document.getElementById("model-display");
+    const scrollDownBtn = document.getElementById("scroll-down-btn");
 
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get("token")) {
-    token = urlParams.get("token");
-    localStorage.setItem("pi_token", token);
-  }
+    // 获取 URL 参数中的 token
+    const urlParams = new URLSearchParams(window.location.search);
+    const authToken = urlParams.get("token") || "";
 
-  const term = new Terminal({
-    cursorBlink: true,
-    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-    fontSize: window.innerWidth < 768 ? 13 : 14,
-    theme: {
-      background: "#121212",
-      foreground: "#f4f4f5",
-      cursor: "#f4f4f5",
-      black: "#18181b",
-      red: "#ef4444",
-      green: "#22c55e",
-      yellow: "#eab308",
-      blue: "#3b82f6",
-      magenta: "#a855f7",
-      cyan: "#06b6d4",
-      white: "#f4f4f5"
+    // 建立 WebSocket 连接
+    function connect() {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/?token=${authToken}`;
+
+      connectionDot.className = "dot offline";
+      connectionText.innerText = "连接中...";
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        connectionDot.className = isIdle ? "dot" : "dot thinking";
+        connectionText.innerText = isIdle ? "就绪" : "思考中";
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleServerMessage(data);
+        } catch (e) {
+          console.error("Failed to parse incoming WS message", e);
+        }
+      };
+
+      ws.onclose = () => {
+        connectionDot.className = "dot offline";
+        connectionText.innerText = "已断开";
+        // 3秒后自动重连
+        setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.error("WS error:", err);
+      };
     }
-  });
 
-  const fitAddon = new FitAddon.FitAddon();
-  term.loadAddon(fitAddon);
-  term.loadAddon(new WebLinksAddon.WebLinksAddon());
-  term.open(document.getElementById("terminal-container"));
-  fitAddon.fit();
-
-  window.addEventListener("resize", () => {
-    fitAddon.fit();
-    sendResize();
-  });
-
-  let ws = null;
-  let reconnectTimer = null;
-
-  function showAuth(hint) {
-    authHint.textContent = hint || "请输入控制台输出的访问密码或 PIN 码";
-    authError.style.visibility = "hidden";
-    authOverlay.style.display = "flex";
-    setTimeout(() => pinInput.focus(), 50);
-  }
-
-  function hideAuth() {
-    authOverlay.style.display = "none";
-  }
-
-  async function validateToken(t) {
-    try {
-      const res = await fetch(`/check?token=${encodeURIComponent(t)}`, { cache: "no-store" });
-      const data = await res.json();
-      return data.ok === true;
-    } catch {
-      return false;
-    }
-  }
-
-  function connect() {
-    if (!token) {
-      showAuth();
-      return;
-    }
-    clearTimeout(reconnectTimer);
-    statusDot.classList.add("connecting");
-
-    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${location.host}/ws?token=${encodeURIComponent(token)}`;
-    ws = new WebSocket(wsUrl);
-
-    let opened = false;
-
-    ws.onopen = () => {
-      opened = true;
-      hideAuth();
-      reconnectBanner.style.display = "none";
-      statusDot.classList.remove("connecting");
-      statusDot.classList.add("connected");
-      term.focus();
-      sendResize();
-    };
-
-    ws.onmessage = (event) => {
-      term.write(event.data);
-    };
-
-    ws.onclose = async (e) => {
-      statusDot.classList.remove("connected", "connecting");
-      if (opened) {
-        // Was connected, then dropped: network blip or server shutdown. Retry.
-        reconnectBanner.style.display = "block";
-        reconnectTimer = setTimeout(connect, 3000);
-      } else {
-        // Never even opened: either bad token or server unreachable. Distinguish.
-        const valid = await validateToken(token);
-        if (valid) {
-          reconnectBanner.style.display = "block";
-          reconnectTimer = setTimeout(connect, 3000);
-        } else {
-          localStorage.removeItem("pi_token");
-          showAuth("会话已失效或密码错误，请重新输入");
+    // 渲染 Markdown
+    function renderMarkdown(text) {
+      if (window.marked) {
+        try {
+          return marked.parse(text);
+        } catch (e) {
+          // fallback
         }
       }
-    };
-
-    ws.onerror = () => {
-      statusDot.classList.remove("connected", "connecting");
-    };
-  }
-
-  function sendResize() {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: "resize",
-        cols: term.cols,
-        rows: term.rows
-      }));
+      return text.replace(/\n/g, "<br>");
     }
-  }
 
-  term.onData(data => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      if (ctrlActive) {
-        ctrlActive = false;
-        btnCtrl.classList.remove("active");
-        if (data.length === 1) {
-          const code = data.toUpperCase().charCodeAt(0);
-          if (code >= 65 && code <= 90) {
-            ws.send(JSON.stringify({ type: "data", data: String.fromCharCode(code - 64) }));
-            return;
+    // 处理服务端推送
+    function handleServerMessage(data) {
+      switch (data.type) {
+        case "init":
+          if (data.model) modelDisplay.innerText = data.model;
+          setAgentIdleState(data.isIdle);
+          renderHistory(data.history || []);
+          break;
+
+        case "status":
+          setAgentIdleState(data.status === "idle");
+          break;
+
+        case "message_append":
+          appendMessage(data.message);
+          break;
+
+        case "message_update":
+          updateAssistantMessage(data.id, data.text);
+          break;
+
+        case "message_end":
+          finalizeAssistantMessage(data.id, data.text);
+          break;
+
+        case "tool_call":
+          renderToolCall(data);
+          break;
+
+        case "tool_result":
+          renderToolResult(data);
+          break;
+
+        case "pong":
+          break;
+      }
+    }
+
+    function setAgentIdleState(idle) {
+      isIdle = idle;
+      if (isIdle) {
+        connectionDot.className = "dot";
+        connectionText.innerText = "就绪";
+        sendBtn.className = "action-circle-btn";
+        sendIcon.innerText = "↑";
+        removeTypingCursor();
+      } else {
+        connectionDot.className = "dot thinking";
+        connectionText.innerText = "思考中";
+        sendBtn.className = "action-circle-btn abort";
+        sendIcon.innerText = "⏹";
+      }
+    }
+
+    function renderHistory(history) {
+      messagesContainer.innerHTML = "";
+      for (const msg of history) {
+        appendMessage(msg);
+      }
+      scrollToBottom();
+    }
+
+    function appendMessage(msg) {
+      const wrapper = document.createElement("div");
+      wrapper.className = `message-wrapper ${msg.role}`;
+      wrapper.id = `msg-${msg.id}`;
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      if (msg.role === "user") {
+        bubble.innerText = msg.text;
+      } else if (msg.role === "assistant") {
+        activeAssistantMsgId = msg.id;
+        activeAssistantText = msg.text || "";
+        bubble.innerHTML = renderMarkdown(activeAssistantText) + '<span class="typing-cursor"></span>';
+
+        // 如果历史消息带 toolCalls
+        if (msg.toolCalls && msg.toolCalls.length > 0) {
+          for (const tc of msg.toolCalls) {
+            bubble.appendChild(createToolElement(tc));
+          }
+        }
+      } else if (msg.role === "system") {
+        bubble.innerText = msg.text;
+      }
+
+      wrapper.appendChild(bubble);
+      messagesContainer.appendChild(wrapper);
+
+      if (autoScroll) scrollToBottom();
+    }
+
+    function updateAssistantMessage(id, text) {
+      activeAssistantText = text;
+      let wrapper = id ? document.getElementById(`msg-${id}`) : null;
+      if (!wrapper && activeAssistantMsgId) {
+        wrapper = document.getElementById(`msg-${activeAssistantMsgId}`);
+      }
+
+      if (wrapper) {
+        const bubble = wrapper.querySelector(".bubble");
+        if (bubble) {
+          bubble.innerHTML = renderMarkdown(text) + '<span class="typing-cursor"></span>';
+        }
+      }
+      if (autoScroll) scrollToBottom();
+    }
+
+    function finalizeAssistantMessage(id, text) {
+      removeTypingCursor();
+      let wrapper = id ? document.getElementById(`msg-${id}`) : null;
+      if (!wrapper && activeAssistantMsgId) {
+        wrapper = document.getElementById(`msg-${activeAssistantMsgId}`);
+      }
+      if (wrapper) {
+        const bubble = wrapper.querySelector(".bubble");
+        if (bubble) {
+          bubble.innerHTML = renderMarkdown(text || activeAssistantText);
+        }
+      }
+      activeAssistantMsgId = null;
+      activeAssistantText = "";
+      if (autoScroll) scrollToBottom();
+    }
+
+    function removeTypingCursor() {
+      const cursor = document.querySelector(".typing-cursor");
+      if (cursor) cursor.remove();
+    }
+
+    function createToolElement(tc) {
+      const toolBox = document.createElement("div");
+      toolBox.className = "tool-box";
+      toolBox.id = `tool-${tc.id}`;
+
+      let inputPreview = "";
+      try {
+        if (tc.name === "bash") {
+          inputPreview = tc.args?.command ? `: ${tc.args.command}` : "";
+        } else if (tc.name === "read" || tc.name === "write" || tc.name === "edit") {
+          inputPreview = tc.args?.path ? `: ${tc.args.path}` : "";
+        }
+      } catch {}
+
+      toolBox.innerHTML = `
+        <div class="tool-header" onclick="this.parentElement.classList.toggle('open')">
+          <div class="tool-title">
+            <span>🛠️</span>
+            <span class="tool-tag">${tc.name}</span>
+            <span style="color:var(--text-muted); font-size:0.75rem">${inputPreview}</span>
+          </div>
+          <span style="font-size:0.75rem; color:var(--text-muted)">▼</span>
+        </div>
+        <div class="tool-body">${tc.result ? escapeHtml(typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result, null, 2)) : '执行中...'}</div>
+      `;
+      return toolBox;
+    }
+
+    function renderToolCall(data) {
+      const tc = {
+        id: data.toolCallId,
+        name: data.toolName,
+        args: data.input,
+        status: "running"
+      };
+      const toolEl = createToolElement(tc);
+      messagesContainer.appendChild(toolEl);
+      if (autoScroll) scrollToBottom();
+    }
+
+    function renderToolResult(data) {
+      const toolBox = document.getElementById(`tool-${data.toolCallId}`);
+      if (toolBox) {
+        const body = toolBox.querySelector(".tool-body");
+        if (body) {
+          const res = data.result;
+          body.innerText = typeof res === "string" ? res : JSON.stringify(res, null, 2);
+          if (data.isError) {
+            body.style.color = "#f87171";
           }
         }
       }
-      ws.send(JSON.stringify({ type: "data", data }));
     }
-  });
 
-  btnCtrl.addEventListener("click", () => {
-    ctrlActive = !ctrlActive;
-    btnCtrl.classList.toggle("active", ctrlActive);
-  });
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
 
-  document.querySelectorAll("#mobile-bar button[data-key]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const key = btn.getAttribute("data-key");
-      let seq = "";
-      if (key === "ESC") seq = "\x1b";
-      else if (key === "TAB") seq = "\t";
-      else if (key === "UP") seq = "\x1b[A";
-      else if (key === "DOWN") seq = "\x1b[B";
-      else if (key === "RIGHT") seq = "\x1b[C";
-      else if (key === "LEFT") seq = "\x1b[D";
-      if (seq && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "data", data: seq }));
-        term.focus();
+    // 滚动逻辑
+    function scrollToBottom(force = false) {
+      if (force || autoScroll) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    }
+
+    messagesContainer.addEventListener("scroll", () => {
+      const atBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < 40;
+      autoScroll = atBottom;
+      scrollDownBtn.style.display = atBottom ? "none" : "flex";
+    });
+
+    // 发送与停止控制
+    function handleSendAction() {
+      if (!isIdle) {
+        // 中止
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "abort" }));
+        }
+        return;
+      }
+
+      const text = chatInput.value.trim();
+      if (!text) return;
+
+      sendPrompt(text);
+      chatInput.value = "";
+      chatInput.style.height = "auto";
+    }
+
+    function sendPrompt(text) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("尚未连接到 Pi 终端");
+        return;
+      }
+      ws.send(JSON.stringify({
+        type: "send_message",
+        text: text
+      }));
+    }
+
+    function insertPrompt(text) {
+      chatInput.value = text;
+      chatInput.focus();
+    }
+
+    // 自动高度自适应
+    chatInput.addEventListener("input", () => {
+      chatInput.style.height = "auto";
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + "px";
+    });
+
+    chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSendAction();
       }
     });
-  });
 
-  document.querySelectorAll("#mobile-bar button[data-cmd]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const cmd = btn.getAttribute("data-cmd") + "\r";
+    // 定期心跳
+    setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "data", data: cmd }));
-        term.focus();
+        ws.send(JSON.stringify({ type: "ping" }));
       }
-    });
-  });
+    }, 20000);
 
-  authBtn.addEventListener("click", submitPin);
-  pinInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") submitPin();
-  });
-
-  async function submitPin() {
-    const val = pinInput.value.trim();
-    if (!val) return;
-    authBtn.disabled = true;
-    authError.style.visibility = "hidden";
-    const ok = await validateToken(val);
-    authBtn.disabled = false;
-    if (ok) {
-      token = val;
-      localStorage.setItem("pi_token", token);
-      hideAuth();
-      connect();
-    } else {
-      authError.textContent = "密码错误 / 服务不可用，请核对控制台显示的 PIN 码";
-      authError.style.visibility = "visible";
-    }
-  }
-
-  // Boot: validate saved/URL token first, then connect or ask for PIN.
-  (async () => {
-    if (token && (await validateToken(token))) {
-      connect();
-    } else {
-      localStorage.removeItem("pi_token");
-      token = "";
-      showAuth();
-    }
-  })();
-</script>
+    // 启动
+    connect();
+  </script>
 </body>
 </html>

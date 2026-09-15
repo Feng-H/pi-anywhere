@@ -1,7 +1,7 @@
 {
   "name": "pi-anywhere",
-  "version": "0.1.0",
-  "description": "Instant remote web access for Pi Agent behind NAT / firewalls via Cloudflare Tunnel",
+  "version": "0.2.0",
+  "description": "Native remote mobile Web Chat interface for Pi Coding Agent via Cloudflare Tunnel",
   "type": "module",
   "bin": {
     "pi-anywhere": "./dist/cli.js"
@@ -13,30 +13,49 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
+    "pi-package",
     "pi",
     "pi-agent",
     "coding-agent",
-    "terminal",
-    "web-terminal",
+    "remote",
+    "mobile",
+    "web-chat",
     "cloudflared",
-    "tunnel",
-    "nat-traversal"
+    "tunnel"
   ],
+  "pi": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
   "author": "",
   "license": "MIT",
   "dependencies": {
     "chalk": "^6.0.0",
     "cloudflared": "^0.7.3",
     "commander": "^15.0.0",
-    "node-pty": "^1.1.0",
     "qrcode-terminal": "^0.12.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "^0.85.1",
+    "@earendil-works/pi-coding-agent": "^0.85.1",
     "@types/node": "^26.5.1",
     "@types/qrcode-terminal": "^0.12.2",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
   }
 }

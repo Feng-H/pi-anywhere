@@ -1,81 +1,90 @@
 # pi-anywhere 🚀
 
-> **Instant remote web access for Pi Agent behind NAT / firewalls via Cloudflare Quick Tunnel.**  
-> 零配置、免公网 IP、免买云服务器，一条命令让你的手机、平板或异地浏览器直接连接内网的 Pi Agent！
+> **Native remote mobile Web Chat for Pi Coding Agent via Cloudflare Tunnel.**  
+> 告别黑乎乎的虚拟终端与键盘折磨！零配置、免公网 IP，在 Pi 中一条 `/anywhere` 命令，手机扫码即可接入纯净、优雅、原生流式同步的移动端 Web 工作台！
 
 ---
 
-## ✨ Features 特性
+## 🌟 为什么需要 Pi-Anywhere 2.0？
 
-- 🌐 **免公网 IP / 零配置穿透**：基于 Cloudflare Quick Tunnel，自动打通防火墙并分配安全的 HTTPS 域名。
-- 📱 **移动端专属优化**：
-  - 终端自适应屏幕，内置适配手机/平板的虚拟按键栏（`Esc`、`Tab`、`Ctrl`、`↑`、`↓`）。
-  - **一键快捷指令**：内置快捷按钮一键触发 `/tree`、`/resume` 等 Pi 关键命令。
-- 🔒 **安全防爆破**：每次启动自动生成随机 6 位一次性 PIN 码或自定义访问密码。
-- 📲 **扫码直达**：终端自动渲染 ASCII 二维码，手机相机一扫即连。
-- 🔄 **会话防掉线（Keep-Alive）**：手机切后台或锁屏断开，本地 Pi 任务持续在后台运行，重新打开网页自动同步屏幕。
+市面上传统的远程终端方案（SSH / Web Terminal）在手机屏幕上体验极其痛苦：字体小、按键难点、键盘遮挡屏幕、ANSI 转义码混乱。
+
+**Pi-Anywhere 2.0 采用原生扩展架构**：
+- 🚫 **彻底抛弃 node-pty & tmux**：无 C++ 原生编译依赖，无系统工具限制，轻量即插即用。
+- 📱 **原生级移动端 Chat 界面**：专为触屏优化，支持 Markdown 排版、代码高亮、一键复制、弹性自适应大输入框。
+- ⚡ **真正的实时同屏流式互动**：
+  - 电脑敲字，手机秒同步；
+  - 手机发送指令，电脑端立即触发 Agent 工作；
+  - 手机端一键“⏹ 停止”，实时打断任务。
+- 🛠️ **工具调用智能折叠**：Agent 执行 `bash`、`edit`、`read` 时自动折叠显示执行状态，不破坏阅读体验，点开即可查阅详情。
+- 🌐 **双通道秒级接入**：同时生成 Cloudflare 临时公网穿透 URL（外网 5G 随时随地）与局域网内网直连（同一 Wi-Fi 超低延迟）。
 
 ---
 
-## 🚀 Quick Start 快速使用
+## 🚀 安装与使用
 
-在任何安装了 Pi 的电脑上运行：
+### 1. 安装扩展到 Pi
+
+在终端执行：
 
 ```bash
-# 无需全局安装，直接通过 npx 启动
-npx pi-anywhere
+pi install /path/to/pi-anywhere
+# 或发布后通过 npm 安装：
+# pi install npm:pi-anywhere
 ```
 
-启动后终端将输出公网访问地址、安全 PIN 码与直达二维码：
+或者在你的 `~/.pi/agent/settings.json` 中配置：
+
+```json
+{
+  "packages": [
+    "/Users/yourname/pidev/pi-anywhere"
+  ]
+}
+```
+
+### 2. 随时随地唤起
+
+在任何正在运行的 Pi 会话中，输入：
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│                  🌐 Pi Anywhere is Online                  │
-└────────────────────────────────────────────────────────────┘
-
-  🔗 访问网址 (Web URL): https://sunset-alpine-whisper.trycloudflare.com/?token=829401
-  🔑 安全 PIN 码:        829401
-  💻 挂载的命令:         pi -c
-
-  📱 手机扫码直达 (Scan to Connect):
-  [二维码]
+/anywhere
 ```
 
-掏出手机扫码，或在任何外部浏览器打开链接，即可立刻开始与 Pi Agent 远程对话！
+终端将打印精美的 ASCII 二维码和安全访问链接：
+
+```text
+═══════════════════════════════════════════════════════
+  🚀 Pi-Anywhere 移动端远程控制已就绪！
+═══════════════════════════════════════════════════════
+
+  [二维码]
+
+ 📱 手机扫码或浏览器访问：
+   🌐 公网直达 (全国畅连): https://random-subdomain.trycloudflare.com/?token=abc123
+   🏠 局域网直连 (同WiFi更低延迟): http://192.168.1.100:54321/?token=abc123
+   💻 本地地址: http://127.0.0.1:54321/?token=abc123
+═══════════════════════════════════════════════════════
+```
+
+拿出手机相机扫码，立即在浏览器中打开专属的 Pi 移动端工作台！
 
 ---
 
-## 🛠️ CLI Options 参数说明
+## 🎮 控制命令
 
-```bash
-Usage: pi-anywhere [options]
+在 Pi 终端内支持以下命令：
 
-Options:
-  -V, --version        输出版本号
-  -p, --port <number>  本地绑定的 HTTP 端口 (默认: 随机空闲端口)
-  --pin <string>       自定义安全 PIN 码 / 密码
-  --no-tunnel          仅在局域网内运行，不开启 Cloudflare 外网穿透
-  --cmd <command>      指定启动的程序 (默认: "pi")
-  --args <args...>     传递给命令的参数 (默认: ["-c"])
-  -h, --help           显示帮助信息
-```
+- `/anywhere` - 启动远程 Web 服务并打印二维码与链接。
+- `/anywhere status` 或 `/anywhere url` - 重新查看当前二维码与公网链接。
+- `/anywhere stop` - 关闭 Web 服务并释放隧道。
 
-### 示例
+---
 
-1. **固定密码启动：**
-   ```bash
-   npx pi-anywhere --pin mysecret123
-   ```
+## 🔒 安全性
 
-2. **仅在局域网内使用（同一 Wi-Fi 下访问）：**
-   ```bash
-   npx pi-anywhere --no-tunnel --port 8080
-   ```
-
-3. **进入历史会话选择器：**
-   ```bash
-   npx pi-anywhere --args "-r"
-   ```
+- **随机一次性 Token 鉴权**：每次服务启动都会生成专属安全 Token，防止公网未授权访问。
+- **自动生命周期管理**：Pi 会话退出时，隧道与本地服务自动销毁，不留僵尸后台进程。
 
 ---
 

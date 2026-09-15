@@ -1,106 +1,23 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import chalk from "chalk";
-import qrcode from "qrcode-terminal";
-import crypto from "node:crypto";
-import { TerminalManager } from "./terminal.js";
-import { createServer } from "./server.js";
-import { startTunnel, TunnelResult } from "./tunnel.js";
 
 const program = new Command();
 
 program
   .name("pi-anywhere")
-  .description("Instant remote web access for Pi Agent behind NAT / firewalls via Cloudflare Tunnel")
-  .version("0.1.0")
-  .option("-p, --port <number>", "Local port to bind", "0")
-  .option("--pin <string>", "Custom security PIN / password")
-  .option("--no-tunnel", "Do not create Cloudflare Tunnel (local network only)")
-  .option("--session <name>", "tmux session name to attach-or-create (desktop & phone share it)", "pi")
-  .option("--cmd <command>", "Direct mode: run this command instead of tmux session")
-  .option("--args <args...>", "Arguments for the direct-mode command", ["-c"])
-  .allowUnknownOption(true)
-  .action(async (options) => {
-    // Generate 6-digit random PIN if not specified
-    const pin = options.pin || crypto.randomInt(100000, 999999).toString();
-    const port = parseInt(options.port, 10) || 0;
-
-    console.log(chalk.bold.cyan("\n🚀 Starting Pi Anywhere...\n"));
-
-    const useTmux = !options.cmd;
-    const terminalManager = new TerminalManager(
-      useTmux
-        ? { tmuxSession: options.session }
-        : { command: options.cmd, args: options.args }
-    );
-
-    const { server, listen } = createServer({
-      port,
-      pin,
-      terminalManager,
-    });
-
-    const actualPort = await listen();
-    console.log(chalk.gray(`✓ Local web server listening on http://127.0.0.1:${actualPort}`));
-
-    let publicUrl = `http://127.0.0.1:${actualPort}`;
-    let tunnelInstance: TunnelResult | null = null;
-
-    if (options.tunnel) {
-      process.stdout.write(chalk.yellow("⏳ Creating secure Cloudflare Tunnel (No public IP needed)... "));
-      try {
-        tunnelInstance = await startTunnel(actualPort);
-        publicUrl = tunnelInstance.url;
-        process.stdout.write(chalk.green("Done!\n\n"));
-      } catch (err: any) {
-        process.stdout.write(chalk.red("Failed!\n"));
-        console.warn(chalk.yellow(`⚠ Tunnel setup failed: ${err.message}`));
-        console.warn(chalk.gray("Falling back to local access only.\n"));
-      }
-    }
-
-    const accessUrlWithToken = `${publicUrl}/?token=${pin}`;
-
-    console.log(chalk.bold.green("┌────────────────────────────────────────────────────────────┐"));
-    console.log(chalk.bold.green("│                  🌐 Pi Anywhere is Online                  │"));
-    console.log(chalk.bold.green("└────────────────────────────────────────────────────────────┘\n"));
-
-    console.log(chalk.bold("  🔗 访问网址 (Web URL): ") + chalk.underline.cyan(accessUrlWithToken));
-    console.log(chalk.bold("  🔑 安全 PIN 码:        ") + chalk.bold.yellow(pin));
-    if (terminalManager.mode === "tmux") {
-      console.log(chalk.bold("  💻 会话模式:           ") + chalk.magenta(`tmux attach-or-create → "${options.session}" (电脑与手机共享同一个 Pi 会话)`));
-    } else {
-      console.log(chalk.bold("  💻 挂载的命令:         ") + chalk.magenta(`${options.cmd} ${options.args.join(" ")}`));
-    }
-    console.log();
-
-    console.log(chalk.bold("  📱 手机扫码直达 (Scan to Connect):\n"));
-    qrcode.generate(accessUrlWithToken, { small: true }, (qr) => {
-      // 增加标准的留白边界，使用纯 Unicode 字符，确保所有终端与手机摄像头秒识
-      const lines = qr.split("\n");
-      const pad = "    ";
-      console.log(pad + "█".repeat(lines[0].length + 4));
-      for (const line of lines) {
-        console.log(pad + "██" + line + "██");
-      }
-      console.log(pad + "█".repeat(lines[0].length + 4) + "\n");
-    });
-
-    console.log(chalk.gray("提示: 按 Ctrl+C 随时关闭服务并断开连接。\n"));
-
-    const shutdown = () => {
-      console.log(chalk.yellow("\n🛑 Shutting down Pi Anywhere..."));
-      if (tunnelInstance) {
-        tunnelInstance.stop();
-      }
-      terminalManager.kill();
-      server.close(() => {
-        process.exit(0);
-      });
-    };
-
-    process.on("SIGINT", shutdown);
-    process.on("SIGTERM", shutdown);
+  .description("Remote mobile Web Chat interface for Pi Coding Agent via Cloudflare Tunnel")
+  .version("0.2.0")
+  .action(() => {
+    console.log("\n" + chalk.green.bold("📱 Pi-Anywhere 2.0 (Native Pi Extension)"));
+    console.log(chalk.dim("───────────────────────────────────────────────────"));
+    console.log(chalk.white("pi-anywhere 是 Pi Agent 的官方推荐远程接入扩展。"));
+    console.log(chalk.cyan("使用姿势："));
+    console.log(chalk.yellow("  1. 在 Pi 会话中直接输入：") + chalk.white.bold("/anywhere"));
+    console.log(chalk.white("     终端将打印二维码与临时公网安全访问 URL。"));
+    console.log(chalk.yellow("  2. 用手机扫码或浏览器打开："));
+    console.log(chalk.white("     立即享受全功能、丝滑流式同步、带 Markdown 渲染与工具折叠的移动端 Web 工作台！"));
+    console.log(chalk.dim("───────────────────────────────────────────────────\n"));
   });
 
 program.parse(process.argv);

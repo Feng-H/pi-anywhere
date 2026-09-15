@@ -3,121 +3,185 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
-import { TerminalManager } from "./terminal.js";
+import os from "node:os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export interface ServerOptions {
-  port: number;
-  pin: string;
-  terminalManager: TerminalManager;
+export interface ServerCallbacks {
+  onUserMessage: (text: string) => void | Promise<void>;
+  onAbort: () => void | Promise<void>;
+  getInitialState: () => {
+    model?: string;
+    isIdle: boolean;
+    history: any[];
+    sessionFile?: string;
+  };
 }
 
-export function createServer(options: ServerOptions) {
-  const { port, pin, terminalManager } = options;
+export interface AnywhereServer {
+  port: number;
+  token: string;
+  localUrl: string;
+  lanUrl: string | null;
+  broadcast: (data: any) => void;
+  close: () => Promise<void>;
+}
 
-  const server = http.createServer((req, res) => {
-    // Token validation endpoint for the frontend
-    if (req.url?.split("?")[0] === "/check") {
-      const url = new URL(req.url || "/", `http://${req.headers.host}`);
-      const ok = (url.searchParams.get("token") || "") === pin;
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok }));
-      return;
+export function getLanIp(): string | null {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    const iface = interfaces[name];
+    if (!iface) continue;
+    for (const info of iface) {
+      if (info.family === "IPv4" && !info.internal && info.address.startsWith("192.168.") || info.address.startsWith("10.") || info.address.startsWith("172.")) {
+        return info.address;
+      }
+    }
+  }
+  return null;
+}
+
+export function startServer(port: number = 0, token: string, callbacks: ServerCallbacks): Promise<AnywhereServer> {
+  return new Promise((resolve, reject) => {
+    // 静态资源根目录：兼容 dev (src/public) 与 build (dist/public)
+    let publicDir = path.join(__dirname, "public");
+    if (!fs.existsSync(publicDir)) {
+      publicDir = path.join(__dirname, "../src/public");
     }
 
-    // Serve Web Terminal static files
-    let filePath = path.join(__dirname, "public", "index.html");
-    if (!fs.existsSync(filePath)) {
-      // Dev mode fallback
-      filePath = path.join(__dirname, "../src/public/index.html");
-    }
+    const server = http.createServer((req, res) => {
+      const parsedUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+      const reqPath = parsedUrl.pathname;
 
-    if (req.url === "/" || req.url?.startsWith("/?")) {
-      fs.readFile(filePath, "utf-8", (err, data) => {
-        if (err) {
-          res.writeHead(500, { "Content-Type": "text/plain" });
-          res.end("500 Internal Server Error");
+      // 仅允许带 token 访问或静态前端页面
+      const reqToken = parsedUrl.searchParams.get("token");
+
+      if (reqPath === "/" || reqPath === "/index.html") {
+        const filePath = path.join(publicDir, "index.html");
+        if (fs.existsSync(filePath)) {
+          res.writeHead(200, {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-cache",
+          });
+          fs.createReadStream(filePath).pipe(res);
           return;
         }
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(data);
-      });
-      return;
-    }
+      }
 
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("404 Not Found");
-  });
+      // 静态资源兜底
+      const safePath = path.normalize(reqPath).replace(/^(\.\.[\/\\])+/, "");
+      const filePath = path.join(publicDir, safePath);
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath);
+        const mimeTypes: Record<string, string> = {
+          ".html": "text/html",
+          ".js": "application/javascript",
+          ".css": "text/css",
+          ".json": "application/json",
+          ".png": "image/png",
+          ".svg": "image/svg+xml",
+        };
+        res.writeHead(200, { "Content-Type": mimeTypes[ext] || "application/octet-stream" });
+        fs.createReadStream(filePath).pipe(res);
+        return;
+      }
 
-  const wss = new WebSocketServer({ noServer: true });
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not Found");
+    });
 
-  server.on("upgrade", (request, socket, head) => {
-    const url = new URL(request.url || "", `http://${request.headers.host}`);
-    if (url.pathname === "/ws") {
-      const clientToken = url.searchParams.get("token");
-      if (clientToken !== pin) {
-        // Unauthorized
+    const wss = new WebSocketServer({ noServer: true });
+    const clients = new Set<WebSocket>();
+
+    server.on("upgrade", (req, socket, head) => {
+      const parsedUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+      const reqToken = parsedUrl.searchParams.get("token");
+
+      if (reqToken !== token) {
         socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
         socket.destroy();
         return;
       }
 
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit("connection", ws, request);
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit("connection", ws, req);
       });
-    } else {
-      socket.destroy();
-    }
-  });
+    });
 
-  wss.on("connection", (ws: WebSocket) => {
-    // Start terminal if not already started
-    terminalManager.start();
+    wss.on("connection", (ws: WebSocket) => {
+      clients.add(ws);
 
-    // Replay buffer on reconnect
-    const history = terminalManager.getHistory();
-    if (history) {
-      ws.send(history);
-    }
-
-    const dataListener = (chunk: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(chunk);
-      }
-    };
-
-    terminalManager.onData(dataListener);
-
-    ws.on("message", (raw) => {
+      // 发送首屏初始化状态
       try {
-        const msg = JSON.parse(raw.toString());
-        if (msg.type === "data") {
-          terminalManager.write(msg.data);
-        } else if (msg.type === "resize") {
-          terminalManager.resize(msg.cols, msg.rows);
-        }
-      } catch {
-        // Plain string fallback
-        terminalManager.write(raw.toString());
+        const initState = callbacks.getInitialState();
+        ws.send(JSON.stringify({
+          type: "init",
+          ...initState,
+        }));
+      } catch (err) {
+        console.error("[pi-anywhere] Error sending init state:", err);
       }
+
+      ws.on("message", async (data: Buffer | string) => {
+        try {
+          const payload = JSON.parse(data.toString());
+          if (payload.type === "send_message" && typeof payload.text === "string") {
+            await callbacks.onUserMessage(payload.text);
+          } else if (payload.type === "abort") {
+            await callbacks.onAbort();
+          } else if (payload.type === "ping") {
+            ws.send(JSON.stringify({ type: "pong" }));
+          }
+        } catch (e) {
+          console.error("[pi-anywhere] Malformed client message:", e);
+        }
+      });
+
+      ws.on("close", () => {
+        clients.delete(ws);
+      });
+
+      ws.on("error", () => {
+        clients.delete(ws);
+      });
     });
 
-    ws.on("close", () => {
-      terminalManager.removeDataListener(dataListener);
+    server.listen(port, "0.0.0.0", () => {
+      const actualPort = (server.address() as any).port;
+      const lanIp = getLanIp();
+      const localUrl = `http://127.0.0.1:${actualPort}/?token=${token}`;
+      const lanUrl = lanIp ? `http://${lanIp}:${actualPort}/?token=${token}` : null;
+
+      const broadcast = (data: any) => {
+        const msg = JSON.stringify(data);
+        for (const ws of clients) {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(msg);
+          }
+        }
+      };
+
+      const close = async () => {
+        for (const ws of clients) {
+          try {
+            ws.close();
+          } catch {}
+        }
+        clients.clear();
+        await new Promise<void>((r) => server.close(() => r()));
+      };
+
+      resolve({
+        port: actualPort,
+        token,
+        localUrl,
+        lanUrl,
+        broadcast,
+        close,
+      });
     });
+
+    server.on("error", reject);
   });
-
-  return {
-    server,
-    listen: () =>
-      new Promise<number>((resolve) => {
-        server.listen(port, "127.0.0.1", () => {
-          const addr = server.address();
-          const actualPort = typeof addr === "object" && addr ? addr.port : port;
-          resolve(actualPort);
-        });
-      }),
-  };
 }
