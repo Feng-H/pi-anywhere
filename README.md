@@ -1,93 +1,101 @@
 # pi-anywhere 🚀
 
-> **Native remote mobile Web Chat for Pi Coding Agent via Cloudflare Tunnel.**  
-> 告别黑乎乎的虚拟终端与键盘折磨！零配置、免公网 IP，在 Pi 中一条 `/anywhere` 命令，手机扫码即可接入纯净、优雅、原生流式同步的移动端 Web 工作台！
+**[English](#why-pi-anywhere-20) | [简体中文](#中文说明)**
 
----
+> **Native remote mobile Web Chat for the [pi](https://pi.dev) coding agent, via Cloudflare Tunnel.**
 
-## 🌟 为什么需要 Pi-Anywhere 2.0？
+## Why Pi-Anywhere 2.0?
 
-市面上传统的远程终端方案（SSH / Web Terminal）在手机屏幕上体验极其痛苦：字体小、按键难点、键盘遮挡屏幕、ANSI 转义码混乱。
+Traditional remote-terminal solutions (SSH / web terminals) are painful on a phone: tiny fonts, unreachable keys, keyboard covering the screen, garbled ANSI codes.
 
-**Pi-Anywhere 2.0 采用原生扩展架构**：
-- 🚫 **彻底抛弃 node-pty & tmux**：无 C++ 原生编译依赖，无系统工具限制，轻量即插即用。
-- 📱 **原生级移动端 Chat 界面**：专为触屏优化，支持 Markdown 排版、代码高亮、一键复制、弹性自适应大输入框。
-- ⚡ **真正的实时同屏流式互动**：
-  - 电脑敲字，手机秒同步；
-  - 手机发送指令，电脑端立即触发 Agent 工作；
-  - 手机端一键“⏹ 停止”，实时打断任务。
-- 🛠️ **工具调用智能折叠**：Agent 执行 `bash`、`edit`、`read` 时自动折叠显示执行状态，不破坏阅读体验，点开即可查阅详情。
-- 🌐 **双通道秒级接入**：同时生成 Cloudflare 临时公网穿透 URL（外网 5G 随时随地）与局域网内网直连（同一 Wi-Fi 超低延迟）。
+**Pi-Anywhere 2.0 is a native pi extension** — your phone becomes a remote *Chat UI* for the **same pi instance** running on your computer:
 
----
+- 🚫 **No node-pty, no tmux, no xterm.js** — zero native compilation, zero system-tool dependencies. Pure Node.js/TypeScript.
+- 📱 **Mobile-first Chat interface** — touch-optimized: Markdown rendering, code blocks, auto-growing input box.
+- ⚡ **True real-time mirroring** — type on the computer, the phone streams it live; type on the phone, the computer-side agent starts working instantly; one tap "⏹ Stop" aborts the current run.
+- 🛠️ **Collapsible tool-call panels** — `bash` / `edit` / `read` executions render as neat collapsed cards; tap to expand details.
+- 🌐 **Dual-channel access** — a public Cloudflare Quick Tunnel URL (works on cellular) plus a LAN URL (lowest latency on the same Wi-Fi).
 
-## 🚀 安装与使用
-
-### 1. 安装扩展到 Pi
-
-**方式 A：从 GitHub 安装（推荐，无需 npm 账号）：**
+## Install
 
 ```bash
 pi install git:github.com/Feng-H/pi-anywhere
 ```
 
-**方式 B：从 npm 安装：**
+## Usage
 
-```bash
-pi install npm:pi-anywhere
-```
-
-**方式 C：本地路径安装：**
-
-```bash
-pi install /path/to/pi-anywhere
-```
-
-### 2. 随时随地唤起
-
-在任何正在运行的 Pi 会话中，输入：
+Inside any pi session:
 
 ```text
-/anywhere
+/anywhere          # start — prints QR code + public/LAN/local URLs
+/anywhere status   # re-print the URLs
+/anywhere stop     # shut down server + tunnel
 ```
 
-终端将打印精美的 ASCII 二维码和安全访问链接：
+Scan the QR code with your phone, and a mobile Web Chat opens with your **current session history** (Markdown + tool panels rendered). Everything you do on either side streams to the other in real time. The service and tunnel are destroyed automatically when pi exits.
+
+## Security
+
+- Random one-time token per start — all URLs embed `?token=...`; WebSocket upgrade rejects mismatches.
+- Lifecycle-bound: nothing survives pi's shutdown. No lingering background processes.
+
+## How it works
+
+Extension-API event streams drive the Web UI:
+
+| pi event | Web Chat behavior |
+|---|---|
+| `message_start/update/end` | bubbles with live typewriter streaming |
+| `tool_call` / `tool_result` | collapsible tool panels |
+| `agent_start` / `agent_settled` | status dot + send/abort button toggle |
+
+Uplink is two API calls: `pi.sendUserMessage()` (your phone messages, including `/commands`) and `ctx.abort()` (the ⏹ button).
+
+---
+
+## 中文说明
+
+> **基于 Cloudflare Tunnel 的 pi 原生移动端远程 Web Chat。**
+
+### 为什么需要 Pi-Anywhere 2.0？
+
+市面上传统的远程终端方案（SSH / Web Terminal）在手机屏幕上体验极其痛苦：字体小、按键难点、键盘遮挡屏幕、ANSI 转义码混乱。
+
+**Pi-Anywhere 2.0 采用原生扩展架构**——手机是电脑上**同一个 pi 实例**的远程 Chat 界面：
+
+- 🚫 **彻底抛弃 node-pty & tmux & xterm.js**：无 C++ 编译依赖、无系统工具限制，轻量即插即用；
+- 📱 **原生级移动端 Chat 界面**：专为触屏优化，Markdown 排版、代码高亮、弹性自适应大输入框；
+- ⚡ **真正的实时同屏流式互动**：电脑敲字手机秒同步；手机发送指令电脑端立即干活；手机端一键"⏹ 停止"实时打断任务；
+- 🛠️ **工具调用智能折叠**：Agent 执行 `bash` / `edit` / `read` 时自动折叠显示，点开才展开详情，不刷屏；
+- 🌐 **双通道秒级接入**：Cloudflare 临时公网穿透 URL（蜂窝网络可用）+ 局域网直连 URL（同 Wi-Fi 超低延迟）。
+
+### 安装
+
+```bash
+pi install git:github.com/Feng-H/pi-anywhere
+```
+
+### 使用
+
+在任意 pi 会话中：
 
 ```text
-═══════════════════════════════════════════════════════
-  🚀 Pi-Anywhere 移动端远程控制已就绪！
-═══════════════════════════════════════════════════════
-
-  [二维码]
-
- 📱 手机扫码或浏览器访问：
-   🌐 公网直达 (全国畅连): https://random-subdomain.trycloudflare.com/?token=abc123
-   🏠 局域网直连 (同WiFi更低延迟): http://192.168.1.100:54321/?token=abc123
-   💻 本地地址: http://127.0.0.1:54321/?token=abc123
-═══════════════════════════════════════════════════════
+/anywhere          # 启动 —— 打印二维码与公网/局域网/本地 URL
+/anywhere status   # 重新查看 URL
+/anywhere stop     # 关闭服务与隧道
 ```
 
-拿出手机相机扫码，立即在浏览器中打开专属的 Pi 移动端工作台！
+手机扫码即打开移动端 Web Chat,**当前会话历史**自动加载（Markdown + 工具面板渲染）。两端任何操作都实时同步到另一端。pi 退出时服务与隧道自动销毁。
 
----
+### 安全性
 
-## 🎮 控制命令
+- 每次启动生成随机一次性 token，所有 URL 内嵌 `?token=...`，WebSocket 升级校验不匹配直接拒绝；
+- 生命周期绑定：pi 关闭即全部销毁，不留后台进程。
 
-在 Pi 终端内支持以下命令：
+### 工作原理
 
-- `/anywhere` - 启动远程 Web 服务并打印二维码与链接。
-- `/anywhere status` 或 `/anywhere url` - 重新查看当前二维码与公网链接。
-- `/anywhere stop` - 关闭 Web 服务并释放隧道。
+Extension API 事件流直接驱动 Web UI:`message_start/update/end` → 气泡与打字机流式;`tool_call/result` → 折叠工具面板;`agent_start/settled` → 状态灯与发送/打断按钮切换。上行两条通道:`pi.sendUserMessage()`(手机消息,含 `/命令`)与 `ctx.abort()`(⏹ 打断)。
 
----
+## License
 
-## 🔒 安全性
-
-- **随机一次性 Token 鉴权**：每次服务启动都会生成专属安全 Token，防止公网未授权访问。
-- **自动生命周期管理**：Pi 会话退出时，隧道与本地服务自动销毁，不留僵尸后台进程。
-
----
-
-## 📄 License
-
-MIT © Feng-H
+MIT
