@@ -16,9 +16,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          registry-url: "https://registry.npmjs.com"
       - run: npm ci
       - run: npm run build
-      - name: Publish with Trusted Publishing
-        run: |
-          npm config set //registry.npmjs.com/:_authToken=""
-          npm publish --access public --provenance --registry=https://registry.npmjs.com/
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ''
