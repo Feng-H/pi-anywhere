@@ -1,5 +1,8 @@
 # pi-anywhere 🚀
 
+[![npm version](https://img.shields.io/npm/v/pi-anywhere.svg?color=blue)](https://www.npmjs.com/package/pi-anywhere)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **[English](#why-pi-anywhere-20) | [简体中文](#中文说明)**
 
 > **Native remote mobile Web Chat for the [pi](https://pi.dev) coding agent, via Cloudflare Tunnel.**
@@ -17,6 +20,14 @@ Traditional remote-terminal solutions (SSH / web terminals) are painful on a pho
 - 🌐 **Dual-channel access** — a public Cloudflare Quick Tunnel URL (works on cellular) plus a LAN URL (lowest latency on the same Wi-Fi).
 
 ## Install
+
+Install via **npm** (recommended):
+
+```bash
+pi install npm:pi-anywhere
+```
+
+Or install directly from **GitHub**:
 
 ```bash
 pi install git:github.com/Feng-H/pi-anywhere
@@ -55,6 +66,8 @@ Uplink is two API calls: `pi.sendUserMessage()` (your phone messages, including 
 
 ## 中文说明
 
+[![npm version](https://img.shields.io/npm/v/pi-anywhere.svg?color=blue)](https://www.npmjs.com/package/pi-anywhere)
+
 > **基于 Cloudflare Tunnel 的 pi 原生移动端远程 Web Chat。**
 
 ### 为什么需要 Pi-Anywhere 2.0？
@@ -69,11 +82,21 @@ Uplink is two API calls: `pi.sendUserMessage()` (your phone messages, including 
 - 🛠️ **工具调用智能折叠**：Agent 执行 `bash` / `edit` / `read` 时自动折叠显示，点开才展开详情，不刷屏；
 - 🌐 **双通道秒级接入**：Cloudflare 临时公网穿透 URL（蜂窝网络可用）+ 局域网直连 URL（同 Wi-Fi 超低延迟）。
 
-### 安装
+### 安装方式
+
+通过 **npm 官方镜像** 安装（推荐）：
+
+```bash
+pi install npm:pi-anywhere
+```
+
+或者直接从 **GitHub** 安装：
 
 ```bash
 pi install git:github.com/Feng-H/pi-anywhere
 ```
+
+- npm 官方包页面：[https://www.npmjs.com/package/pi-anywhere](https://www.npmjs.com/package/pi-anywhere)
 
 ### 使用
 
