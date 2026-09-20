@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/pi-anywhere.svg?color=blue)](https://www.npmjs.com/package/pi-anywhere)
 [![npm downloads](https://img.shields.io/npm/dt/pi-anywhere.svg?color=green)](https://www.npmjs.com/package/pi-anywhere)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![pi-package](https://img.shields.io/badge/pi-package-00b57a)](https://pi.dev/packages)
 
 **[English](#why-pi-anywhere-20) | [简体中文](#中文说明)**
 
@@ -68,9 +69,6 @@ Uplink channels: `pi.sendUserMessage()` (phone messages, including `/commands`),
 ---
 
 ## 中文说明
-
-[![npm version](https://img.shields.io/npm/v/pi-anywhere.svg?color=blue)](https://www.npmjs.com/package/pi-anywhere)
-[![npm downloads](https://img.shields.io/npm/dt/pi-anywhere.svg?color=green)](https://www.npmjs.com/package/pi-anywhere)
 
 > **基于 Cloudflare Tunnel 的 pi 原生移动端远程 Web Chat。**
 
