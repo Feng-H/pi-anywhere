@@ -28,8 +28,16 @@
       "./dist/index.js"
     ]
   },
-  "author": "",
+  "author": "Feng-H",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Feng-H/pi-anywhere.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Feng-H/pi-anywhere/issues"
+  },
+  "homepage": "https://github.com/Feng-H/pi-anywhere#readme",
   "dependencies": {
     "chalk": "^6.0.0",
     "cloudflared": "^0.7.3",
