@@ -61,8 +61,9 @@ Extension-API event streams drive the Web UI:
 | `message_start/update/end` | bubbles with live typewriter streaming |
 | `tool_call` / `tool_result` | collapsible tool panels |
 | `agent_start` / `agent_settled` | status dot + send/abort button toggle |
+| `model_select` | header model tag updates in real-time |
 
-Uplink is two API calls: `pi.sendUserMessage()` (your phone messages, including `/commands`) and `ctx.abort()` (the ⏹ button).
+Uplink channels: `pi.sendUserMessage()` (phone messages, including `/commands`), `ctx.abort()` (the ⏹ button), and `pi.setModel()` (bottom-sheet model picker).
 
 ---
 
@@ -121,7 +122,7 @@ pi install git:github.com/Feng-H/pi-anywhere
 
 ### 工作原理
 
-Extension API 事件流直接驱动 Web UI:`message_start/update/end` → 气泡与打字机流式;`tool_call/result` → 折叠工具面板;`agent_start/settled` → 状态灯与发送/打断按钮切换。上行两条通道:`pi.sendUserMessage()`(手机消息,含 `/命令`)与 `ctx.abort()`(⏹ 打断)。
+Extension API 事件流直接驱动 Web UI：`message_start/update/end` → 气泡与打字机流式；`tool_call/result` → 折叠工具面板；`agent_start/settled` → 状态灯与发送/打断按钮切换；`model_select` → 顶栏模型标签实时同屏同步。上行三条通道：`pi.sendUserMessage()`（手机消息，含 `/命令`）、`ctx.abort()`（⏹ 打断）以及 `pi.setModel()`（手机端抽屉切模型）。
 
 ## License
 
