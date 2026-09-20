@@ -1,11 +1,22 @@
+export interface RemoteModelInfo {
+    provider: string;
+    id: string;
+    name: string;
+    reasoning: boolean;
+}
 export interface ServerCallbacks {
     onUserMessage: (text: string) => void | Promise<void>;
     onAbort: () => void | Promise<void>;
+    onSwitchModel: (provider: string, modelId: string) => Promise<{
+        ok: boolean;
+        error?: string;
+    }>;
     getInitialState: () => {
         model?: string;
         isIdle: boolean;
         history: any[];
         sessionFile?: string;
+        models?: RemoteModelInfo[];
     };
 }
 export interface AnywhereServer {

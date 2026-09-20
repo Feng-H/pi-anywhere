@@ -103,11 +103,168 @@
 
     .model-tag {
       font-size: 0.7rem;
-      color: var(--text-muted);
+      color: var(--text-secondary);
       max-width: 140px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.2s;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .model-tag:active {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .model-tag svg {
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+
+    /* 模型选择抽屉 */
+    .sheet-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+    .sheet-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .model-sheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-height: 72vh;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      border-radius: 18px 18px 0 0;
+      z-index: 101;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.28s cubic-bezier(0.32, 0.72, 0.16, 1);
+      padding-bottom: var(--safe-bottom);
+      box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+    }
+    .model-sheet.show {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.18);
+      margin: 10px auto 6px;
+      flex-shrink: 0;
+    }
+
+    .sheet-title {
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      padding: 2px 16px 10px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .model-list {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 8px 12px 16px;
+    }
+
+    .provider-group-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 12px 8px 6px;
+    }
+
+    .model-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .model-item:active {
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .model-item.selected {
+      background: rgba(59, 130, 246, 0.14);
+      border: 1px solid rgba(59, 130, 246, 0.45);
+    }
+    .model-item.pending {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .model-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .model-item-name {
+      font-size: 0.88rem;
+      color: var(--text-primary);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .model-item-id {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .model-item-check {
+      flex-shrink: 0;
+      color: var(--accent-blue);
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .model-item-tag {
+      flex-shrink: 0;
+      font-size: 0.6rem;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(167, 139, 250, 0.15);
+      color: #a78bfa;
+      border: 1px solid rgba(167, 139, 250, 0.3);
+    }
+
+    .model-empty {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 32px 16px;
     }
 
     /* 聊天消息区 */
@@ -401,7 +558,11 @@
         <span id="connection-text">已连接</span>
       </div>
     </div>
-    <div class="model-tag" id="model-display">...</div>
+    <div class="model-tag" id="model-display" onclick="openModelSheet()"><span id="model-text">...</span>
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+        <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
   </header>
 
   <!-- 消息内容区 -->
@@ -429,6 +590,14 @@
     </button>
   </footer>
 
+  <!-- 模型选择抽屉 -->
+  <div class="sheet-overlay" id="model-sheet-overlay" onclick="closeModelSheet()"></div>
+  <div class="model-sheet" id="model-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">选择模型</div>
+    <div class="model-list" id="model-list"></div>
+  </div>
+
   <script>
     // 基础状态
     let ws = null;
@@ -436,6 +605,10 @@
     let activeAssistantMsgId = null;
     let activeAssistantText = "";
     let autoScroll = true;
+    let availableModels = [];
+    let currentModelId = null;
+    let currentProvider = null;
+    let pendingModelKey = null;
 
     const messagesContainer = document.getElementById("messages-container");
     const chatInput = document.getElementById("chat-input");
@@ -443,8 +616,11 @@
     const sendIcon = document.getElementById("send-icon");
     const connectionDot = document.getElementById("connection-dot");
     const connectionText = document.getElementById("connection-text");
-    const modelDisplay = document.getElementById("model-display");
+    const modelDisplay = document.getElementById("model-text");
     const scrollDownBtn = document.getElementById("scroll-down-btn");
+    const modelSheet = document.getElementById("model-sheet");
+    const modelSheetOverlay = document.getElementById("model-sheet-overlay");
+    const modelList = document.getElementById("model-list");
 
     // 获取 URL 参数中的 token
     const urlParams = new URLSearchParams(window.location.search);
@@ -503,8 +679,33 @@
       switch (data.type) {
         case "init":
           if (data.model) modelDisplay.innerText = data.model;
+          updateCurrentModelFromRef(data.model);
+          if (Array.isArray(data.models)) availableModels = data.models;
           setAgentIdleState(data.isIdle);
           renderHistory(data.history || []);
+          break;
+
+        case "model_update":
+          // 服务端确认模型已切换（含终端侧切换同步）
+          updateCurrentModelFromRef(`${data.provider}/${data.modelId}`);
+          modelDisplay.innerText = `${data.provider}/${data.modelId}`;
+          pendingModelKey = null;
+          renderModelList();
+          closeModelSheet();
+          break;
+
+        case "model_switch_result":
+          pendingModelKey = null;
+          if (!data.ok) {
+            renderModelList();
+            alert(data.error || "模型切换失败");
+          } else {
+            // 兼容 model_update 未到达的极端情况（幂等）
+            updateCurrentModelFromRef(`${data.provider}/${data.modelId}`);
+            modelDisplay.innerText = `${data.provider}/${data.modelId}`;
+            renderModelList();
+            closeModelSheet();
+          }
           break;
 
         case "status":
@@ -699,6 +900,97 @@
       autoScroll = atBottom;
       scrollDownBtn.style.display = atBottom ? "none" : "flex";
     });
+
+    function updateCurrentModelFromRef(modelRef) {
+      if (!modelRef) return;
+      const idx = modelRef.indexOf("/");
+      if (idx > 0) {
+        currentProvider = modelRef.slice(0, idx);
+        currentModelId = modelRef.slice(idx + 1);
+      } else {
+        currentProvider = null;
+        currentModelId = modelRef;
+      }
+    }
+
+    // 模型选择抽屉
+    function openModelSheet() {
+      renderModelList();
+      modelSheet.classList.add("show");
+      modelSheetOverlay.classList.add("show");
+    }
+
+    function closeModelSheet() {
+      modelSheet.classList.remove("show");
+      modelSheetOverlay.classList.remove("show");
+    }
+
+    function renderModelList() {
+      modelList.innerHTML = "";
+      if (!availableModels.length) {
+        modelList.innerHTML = '<div class="model-empty">暂无可用模型</div>';
+        return;
+      }
+
+      // 按_provider 分组，当前模型所在组置顶
+      const groups = {};
+      for (const m of availableModels) {
+        (groups[m.provider] = groups[m.provider] || []).push(m);
+      }
+      const providerNames = Object.keys(groups).sort((a, b) => {
+        const aCur = a === currentProvider ? -1 : 0;
+        const bCur = b === currentProvider ? -1 : 0;
+        return aCur - bCur || a.localeCompare(b);
+      });
+
+      for (const provider of providerNames) {
+        const label = document.createElement("div");
+        label.className = "provider-group-label";
+        label.innerText = provider;
+        modelList.appendChild(label);
+
+        for (const m of groups[provider]) {
+          const item = document.createElement("div");
+          const key = `${m.provider}/${m.id}`;
+          const selected = m.id === currentModelId && m.provider === currentProvider;
+          item.className = "model-item" + (selected ? " selected" : "") + (pendingModelKey === key ? " pending" : "");
+          item.innerHTML = `
+            <div class="model-item-info">
+              <div class="model-item-name">${escapeHtml(m.name || m.id)}</div>
+              <div class="model-item-id">${escapeHtml(m.id)}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px">
+              ${m.reasoning ? '<span class="model-item-tag">思考</span>' : ""}
+              ${selected ? '<span class="model-item-check">✓</span>' : ""}
+            </div>
+          `;
+          item.onclick = () => selectModel(m);
+          modelList.appendChild(item);
+        }
+      }
+    }
+
+    function selectModel(m) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("尚未连接到 Pi 终端");
+        return;
+      }
+      if (!isIdle) {
+        alert("Pi 正在思考中，请等待当前任务完成后再切换模型");
+        return;
+      }
+      if (m.id === currentModelId && m.provider === currentProvider) {
+        closeModelSheet();
+        return;
+      }
+      pendingModelKey = `${m.provider}/${m.id}`;
+      renderModelList();
+      ws.send(JSON.stringify({
+        type: "switch_model",
+        provider: m.provider,
+        modelId: m.id,
+      }));
+    }
 
     // 发送与停止控制
     function handleSendAction() {

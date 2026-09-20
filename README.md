@@ -17,6 +17,7 @@ Traditional remote-terminal solutions (SSH / web terminals) are painful on a pho
 - 🚫 **No node-pty, no tmux, no xterm.js** — zero native compilation, zero system-tool dependencies. Pure Node.js/TypeScript.
 - 📱 **Mobile-first Chat interface** — touch-optimized: Markdown rendering, code blocks, auto-growing input box.
 - ⚡ **True real-time mirroring** — type on the computer, the phone streams it live; type on the phone, the computer-side agent starts working instantly; one tap "⏹ Stop" aborts the current run.
+- 🤖 **Switch models from your phone** — tap the model tag in the header to open a bottom-sheet model picker (grouped by provider); selection syncs back to the desktop pi session, and desktop-side switches mirror to the phone too.
 - 🛠️ **Collapsible tool-call panels** — `bash` / `edit` / `read` executions render as neat collapsed cards; tap to expand details.
 - 🌐 **Dual-channel access** — a public Cloudflare Quick Tunnel URL (works on cellular) plus a LAN URL (lowest latency on the same Wi-Fi).
 
@@ -81,6 +82,7 @@ Uplink is two API calls: `pi.sendUserMessage()` (your phone messages, including 
 - 🚫 **彻底抛弃 node-pty & tmux & xterm.js**：无 C++ 编译依赖、无系统工具限制，轻量即插即用；
 - 📱 **原生级移动端 Chat 界面**：专为触屏优化，Markdown 排版、代码高亮、弹性自适应大输入框；
 - ⚡ **真正的实时同屏流式互动**：电脑敲字手机秒同步；手机发送指令电脑端立即干活；手机端一键"⏹ 停止"实时打断任务；
+- 🤖 **手机端直接切换模型**：点击顶栏模型标签，底部弹出模型选择器（按 provider 分组）；手机选中的模型同步应用到电脑端 pi 会话，电脑端切换也会实时镜像到手机；
 - 🛠️ **工具调用智能折叠**：Agent 执行 `bash` / `edit` / `read` 时自动折叠显示，点开才展开详情，不刷屏；
 - 🌐 **双通道秒级接入**：Cloudflare 临时公网穿透 URL（蜂窝网络可用）+ 局域网直连 URL（同 Wi-Fi 超低延迟）。
 

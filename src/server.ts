@@ -8,14 +8,23 @@ import os from "node:os";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+export interface RemoteModelInfo {
+  provider: string;
+  id: string;
+  name: string;
+  reasoning: boolean;
+}
+
 export interface ServerCallbacks {
   onUserMessage: (text: string) => void | Promise<void>;
   onAbort: () => void | Promise<void>;
+  onSwitchModel: (provider: string, modelId: string) => Promise<{ ok: boolean; error?: string }>;
   getInitialState: () => {
     model?: string;
     isIdle: boolean;
     history: any[];
     sessionFile?: string;
+    models?: RemoteModelInfo[];
   };
 }
 
@@ -130,6 +139,15 @@ export function startServer(port: number = 0, token: string, callbacks: ServerCa
             await callbacks.onUserMessage(payload.text);
           } else if (payload.type === "abort") {
             await callbacks.onAbort();
+          } else if (payload.type === "switch_model" && typeof payload.provider === "string" && typeof payload.modelId === "string") {
+            // 仅允许空闲时切换，避免流式过程中产生竞态
+            const result = await callbacks.onSwitchModel(payload.provider, payload.modelId);
+            ws.send(JSON.stringify({
+              type: "model_switch_result",
+              provider: payload.provider,
+              modelId: payload.modelId,
+              ...result,
+            }));
           } else if (payload.type === "ping") {
             ws.send(JSON.stringify({ type: "pong" }));
           }

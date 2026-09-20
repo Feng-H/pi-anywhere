@@ -99,6 +99,16 @@ export function startServer(port = 0, token, callbacks) {
                     else if (payload.type === "abort") {
                         await callbacks.onAbort();
                     }
+                    else if (payload.type === "switch_model" && typeof payload.provider === "string" && typeof payload.modelId === "string") {
+                        // 仅允许空闲时切换，避免流式过程中产生竞态
+                        const result = await callbacks.onSwitchModel(payload.provider, payload.modelId);
+                        ws.send(JSON.stringify({
+                            type: "model_switch_result",
+                            provider: payload.provider,
+                            modelId: payload.modelId,
+                            ...result,
+                        }));
+                    }
                     else if (payload.type === "ping") {
                         ws.send(JSON.stringify({ type: "pong" }));
                     }

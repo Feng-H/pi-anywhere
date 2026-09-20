@@ -32,6 +32,16 @@ export default function (pi: ExtensionAPI) {
     server?.broadcast({ type: "status", status: "idle" });
   });
 
+  // 终端侧切换模型时（如 /models 命令），同步到所有手机客户端
+  pi.on("model_select", (event) => {
+    server?.broadcast({
+      type: "model_update",
+      model: `${event.model.provider}/${event.model.id}`,
+      modelId: event.model.id,
+      provider: event.model.provider,
+    });
+  });
+
   pi.on("message_start", (event) => {
     if (event.message.role === "user") {
       const text = extractTextFromMessage(event.message);
@@ -160,10 +170,36 @@ async function startAnywhere(pi: ExtensionAPI, ctx: ExtensionContext) {
         currentContext.abort();
       }
     },
+    onSwitchModel: async (provider: string, modelId: string) => {
+      try {
+        if (!currentContext) {
+          return { ok: false, error: "无活跃会话" };
+        }
+        if (!currentContext.isIdle()) {
+          return { ok: false, error: "Pi 正在思考中，请等待当前任务完成后再切换模型" };
+        }
+        const model = currentContext.modelRegistry.find(provider, modelId);
+        if (!model) {
+          return { ok: false, error: `未找到模型 ${provider}/${modelId}` };
+        }
+        if (!currentContext.modelRegistry.hasConfiguredAuth(model)) {
+          return { ok: false, error: `模型 ${provider}/${modelId} 未配置认证信息` };
+        }
+        const success = await pi.setModel(model);
+        if (!success) {
+          return { ok: false, error: `切换失败：${provider}/${modelId} 认证不可用` };
+        }
+        console.log(`[pi-anywhere] Model switched via mobile: ${provider}/${modelId}`);
+        return { ok: true };
+      } catch (err: any) {
+        return { ok: false, error: err?.message || String(err) };
+      }
+    },
     getInitialState: () => {
       const isIdle = currentContext ? currentContext.isIdle() : true;
       const model = currentContext?.model ? `${currentContext.model.provider}/${currentContext.model.id}` : undefined;
       const sessionFile = currentContext?.sessionManager.getSessionFile();
+      const models = getSelectableModels();
       let history: any[] = [];
       try {
         const entries = currentContext?.sessionManager.buildContextEntries() || [];
@@ -176,6 +212,7 @@ async function startAnywhere(pi: ExtensionAPI, ctx: ExtensionContext) {
         isIdle,
         model,
         sessionFile,
+        models,
         history,
       };
     },
@@ -204,6 +241,42 @@ async function stopAnywhere() {
     server = null;
   }
   publicUrl = null;
+}
+
+/**
+ * 获取可切换的模型列表：优先返回会话 scoped 模型（--models / enabledModels），
+ * 未配置 scoping 时返回全部可用模型。仅保留已认证可用的模型。
+ */
+function getSelectableModels() {
+  if (!currentContext) return [];
+  try {
+    const scoped = currentContext.scopedModels || [];
+    const models = scoped.length > 0 ? scoped.map((s) => s.model) : currentContext.modelRegistry.getAvailable();
+    const seen = new Set<string>();
+    return models
+      .filter((m) => {
+        try {
+          return currentContext!.modelRegistry.hasConfiguredAuth(m);
+        } catch {
+          return false;
+        }
+      })
+      .filter((m) => {
+        const key = `${m.provider}/${m.id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((m) => ({
+        provider: m.provider,
+        id: m.id,
+        name: m.name || m.id,
+        reasoning: !!m.reasoning,
+      }));
+  } catch (e) {
+    console.error("[pi-anywhere] Failed to list models:", e);
+    return [];
+  }
 }
 
 function printAccessInfo(fullPublicUrl: string, lanUrl: string | null, localUrl: string) {
