@@ -43,7 +43,10 @@ export function getLanIp(): string | null {
     const iface = interfaces[name];
     if (!iface) continue;
     for (const info of iface) {
-      if (info.family === "IPv4" && !info.internal && info.address.startsWith("192.168.") || info.address.startsWith("10.") || info.address.startsWith("172.")) {
+      if (info.family === "IPv4" && !info.internal &&
+        (info.address.startsWith("192.168.") ||
+          info.address.startsWith("10.") ||
+          /^172\.(1[6-9]|2\d|3[01])\./.test(info.address))) {
         return info.address;
       }
     }

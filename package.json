@@ -1,6 +1,6 @@
 {
   "name": "pi-anywhere",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Native remote mobile Web Chat interface for Pi Coding Agent via Cloudflare Tunnel",
   "type": "module",
   "bin": {
@@ -46,8 +46,8 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "^0.85.1",
-    "@earendil-works/pi-coding-agent": "^0.85.1",
+    "@earendil-works/pi-ai": "^1.5.1",
+    "@earendil-works/pi-coding-agent": "^1.5.1",
     "@types/node": "^26.5.1",
     "@types/qrcode-terminal": "^0.12.2",
     "@types/ws": "^8.18.1",

@@ -48,6 +48,12 @@ Inside any pi session:
 
 Scan the QR code with your phone, and a mobile Web Chat opens with your **current session history** (Markdown + tool panels rendered). Everything you do on either side streams to the other in real time. The service and tunnel are destroyed automatically when pi exits.
 
+Notes:
+
+- **Compatibility**: works with both pi 0.8x and pi 1.x (tested against 1.5.1).
+- Messages sent from the phone while the agent is running are **queued** and delivered when the current run finishes (pi ≥ 1.2 behavior).
+- Switching sessions in the terminal (`/new`, `/resume`, `/fork`) reloads extensions and tears down the mobile connection — re-run `/anywhere` to get a fresh URL.
+
 ## Security
 
 - Random one-time token per start — all URLs embed `?token=...`; WebSocket upgrade rejects mismatches.
@@ -112,6 +118,12 @@ pi install git:github.com/Feng-H/pi-anywhere
 ```
 
 手机扫码即打开移动端 Web Chat,**当前会话历史**自动加载（Markdown + 工具面板渲染）。两端任何操作都实时同步到另一端。pi 退出时服务与隧道自动销毁。
+
+说明：
+
+- **兼容性**：同时支持 pi 0.8x 与 pi 1.x（已对照 1.5.1 测试）；
+- agent 运行中从手机发送的消息会**自动排队**，当前任务结束后送达（pi ≥ 1.2 行为）；
+- 在终端切换会话（`/new`、`/resume`、`/fork`）会重载扩展并断开手机连接，重新执行 `/anywhere` 即可获得新 URL。
 
 ### 安全性
 

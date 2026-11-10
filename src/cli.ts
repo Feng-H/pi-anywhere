@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import chalk from "chalk";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 const program = new Command();
 
 program
   .name("pi-anywhere")
   .description("Remote mobile Web Chat interface for Pi Coding Agent via Cloudflare Tunnel")
-  .version("0.2.0")
+  .version(version)
   .action(() => {
     console.log("\n" + chalk.green.bold("📱 Pi-Anywhere 2.0 (Native Pi Extension)"));
     console.log(chalk.dim("───────────────────────────────────────────────────"));

@@ -99,12 +99,33 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_result", (event) => {
+    // pi >= 1.x: content 为 (TextContent | ImageContent)[]，isError 为顶层字段
+    // pi 0.85 (legacy): result.content / result.isError
+    const anyEvent = event as any;
+    const blocks: any[] = Array.isArray(anyEvent.content)
+      ? anyEvent.content
+      : Array.isArray(anyEvent.result?.content)
+        ? anyEvent.result.content
+        : [];
+    const isError = typeof anyEvent.isError === "boolean"
+      ? anyEvent.isError
+      : !!anyEvent.result?.isError;
+    const text = blocks
+      .map((b: any) => {
+        if (typeof b === "string") return b;
+        if (b?.type === "text") return b.text;
+        if (b?.type === "image") return "[图片结果]";
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+
     server?.broadcast({
       type: "tool_result",
-      toolCallId: (event as any).toolCallId,
+      toolCallId: anyEvent.toolCallId,
       toolName: event.toolName,
-      result: (event as any).result,
-      isError: (event as any).isError,
+      result: text,
+      isError,
     });
   });
 
@@ -163,7 +184,15 @@ async function startAnywhere(pi: ExtensionAPI, ctx: ExtensionContext) {
   // 1. 启动 Web/WS Server
   server = await startServer(0, authToken, {
     onUserMessage: async (text: string) => {
-      pi.sendUserMessage(text, { expandPromptTemplates: true });
+      // pi >= 1.2: agent 运行中必须指定 deliverAs，否则消息被拒绝
+      const idle = currentContext ? currentContext.isIdle() : true;
+      const options: { expandPromptTemplates: boolean; deliverAs?: "followUp" } = {
+        expandPromptTemplates: true,
+      };
+      if (!idle) {
+        options.deliverAs = "followUp";
+      }
+      pi.sendUserMessage(text, options);
     },
     onAbort: async () => {
       if (currentContext && !currentContext.isIdle()) {
