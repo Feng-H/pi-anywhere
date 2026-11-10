@@ -157,12 +157,12 @@ export default function (pi: ExtensionAPI) {
 
       // 默认 start
       if (server && publicUrl) {
-        ctx.ui.notify("pi-anywhere 已经在运行中", "info");
-        printAccessInfo(publicUrl, server.lanUrl, server.localUrl);
+        // 不用 ui.notify：toast 会覆盖在二维码上导致扫不了码，改为横幅内标注
+        printAccessInfo(publicUrl, server.lanUrl, server.localUrl, "服务已在运行 · 下为现有连接 URL");
         return;
       }
 
-      ctx.ui.notify("正在启动 pi-anywhere 服务与公网隧道...", "info");
+      console.log(chalk.dim("[pi-anywhere] 正在启动服务与公网隧道..."));
 
       try {
         await startAnywhere(pi, ctx);
@@ -251,9 +251,9 @@ async function startAnywhere(pi: ExtensionAPI, ctx: ExtensionContext) {
   tunnel = await startTunnel(server.port);
   publicUrl = `${tunnel.url}/?token=${authToken}`;
 
-  // 3. 打印展示访问信息与二维码
+  // 3. 打印展示访问信息与二维码。注意：不要在二维码附近再调 ui.notify，
+  //    toast 会覆盖在二维码上导致扫不了码；状态提示全部用 console.log 保证顺序。
   printAccessInfo(publicUrl, server.lanUrl, server.localUrl);
-  ctx.ui.notify("pi-anywhere 启动成功！手机扫码即可接入", "info");
 }
 
 async function stopAnywhere() {
@@ -308,9 +308,9 @@ function getSelectableModels() {
   }
 }
 
-function printAccessInfo(fullPublicUrl: string, lanUrl: string | null, localUrl: string) {
+function printAccessInfo(fullPublicUrl: string, lanUrl: string | null, localUrl: string, subtitle = "移动端远程控制已就绪！") {
   console.log("\n" + chalk.green.bold("═══════════════════════════════════════════════════════"));
-  console.log(chalk.green.bold("  🚀 Pi-Anywhere 移动端远程控制已就绪！"));
+  console.log(chalk.green.bold("  🚀 Pi-Anywhere " + subtitle));
   console.log(chalk.green.bold("═══════════════════════════════════════════════════════"));
 
   // 二维码
