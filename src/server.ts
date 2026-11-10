@@ -32,6 +32,9 @@ export interface ServerCallbacks {
   onSwitchModel: (provider: string, modelId: string) => Promise<{ ok: boolean; error?: string }>;
   onSwitchThinkingLevel?: (level: string) => Promise<{ ok: boolean; error?: string }>;
   onCompact?: () => Promise<{ ok: boolean; error?: string }>;
+  onNavigateTree?: (entryId: string) => Promise<{ ok: boolean; error?: string; switching?: boolean }>;
+  onNewSession?: () => Promise<{ ok: boolean; error?: string; switching?: boolean }>;
+  getTree?: () => any[];
   getInitialState: () => {
     model?: string;
     isIdle: boolean;
@@ -181,6 +184,15 @@ export function startServer(port: number = 0, token: string, callbacks: ServerCa
           } else if (payload.type === "compact") {
             const result = await callbacks.onCompact?.() ?? { ok: false, error: "不支持" };
             ws.send(JSON.stringify({ type: "compact_result", ...result }));
+          } else if (payload.type === "get_tree") {
+            ws.send(JSON.stringify({ type: "tree", nodes: callbacks.getTree?.() ?? [] }));
+          } else if (payload.type === "navigate_tree" && typeof payload.entryId === "string") {
+            const result = await callbacks.onNavigateTree?.(payload.entryId)
+              ?? { ok: false, error: "不支持" };
+            ws.send(JSON.stringify({ type: "navigate_tree_result", entryId: payload.entryId, ...result }));
+          } else if (payload.type === "new_session") {
+            const result = await callbacks.onNewSession?.() ?? { ok: false, error: "不支持" };
+            ws.send(JSON.stringify({ type: "new_session_result", ...result }));
           } else if (payload.type === "ping") {
             ws.send(JSON.stringify({ type: "pong" }));
           }

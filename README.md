@@ -23,6 +23,8 @@ Traditional remote-terminal solutions (SSH / web terminals) are painful on a pho
 - 🖼️ **Send images** — attach up to 4 photos/screenshots (auto-downscaled to ≤1568px) alongside your message; images in history are rendered too (pi ≥ 1.x).
 - 📊 **Context usage bar + one-tap compact** — live `tokens / window · %` under the header (amber ≥60%, red ≥80%) with a compact button that triggers `ctx.compact()`.
 - 🛠️ **Collapsible tool-call panels** — `bash` / `edit` / `read` executions render as neat collapsed cards; tap to expand details.
+- 🌿 **Branch switching from your phone** — a 🔀 button opens the session tree (indented, latest 100 entries); tap any entry to switch branches. ✨ starts a new session; the old one stays reachable via the tree.
+- 🔄 **Survives session switches** — `/new`, `/resume`, `/fork`, `/reload` in the terminal auto-restart the service (same port + token), so LAN phones reconnect automatically; a fresh public QR is printed.
 - 🌐 **Dual-channel access** — a public Cloudflare Quick Tunnel URL (works on cellular) plus a LAN URL (lowest latency on the same Wi-Fi).
 
 ## Install
@@ -46,6 +48,7 @@ Inside any pi session:
 ```text
 /anywhere          # start — prints QR code + public/LAN/local URLs
 /anywhere status   # re-print the URLs
+/anywhere restart  # stop and start again
 /anywhere stop     # shut down server + tunnel
 ```
 
@@ -55,7 +58,7 @@ Notes:
 
 - **Compatibility**: works with both pi 0.8x and pi 1.x (tested against 1.5.1).
 - Messages sent from the phone while the agent is running are **queued** and delivered when the current run finishes (pi ≥ 1.2 behavior).
-- Switching sessions in the terminal (`/new`, `/resume`, `/fork`) reloads extensions and tears down the mobile connection — re-run `/anywhere` to get a fresh URL.
+- Session switches (`/new`, `/resume`, `/fork`) auto-restart the service: LAN phones reconnect automatically (same port/token); the public URL changes and a new QR is printed. Phones connected via the old public URL need to re-scan; `/anywhere stop` disables auto-restart.
 - The tunnel prefers **http2 over TCP 443** (more reliable than QUIC on restricted networks), waits until the edge connection is registered before printing the QR code, and **auto-reconnects** if the tunnel process dies (a new URL is printed — re-scan). If you ever see Cloudflare *Error 1033*, it means the tunnel was unreachable at that moment; use the LAN URL or re-run `/anywhere`.
 
 ## Security
@@ -98,6 +101,8 @@ Uplink channels: `pi.sendUserMessage()` (phone messages, images, `/commands`), `
 - 🖼️ **图片上传**：📎 按钮选图/拍照（最多 4 张，自动缩放），随消息一并发给 agent，历史图片同样回放（pi ≥ 1.x）；
 - 📊 **上下文用量条 + 一键压缩**：顶栏下方实时显示 token 用量与百分比，一键触发会话压缩；
 - 🛠️ **工具调用智能折叠**：Agent 执行 `bash` / `edit` / `read` 时自动折叠显示，点开才展开详情，不刷屏；
+- 🌿 **手机端分支切换**：🔀 按钮打开会话树，点选任意条目切到该分支；✨ 新建会话，旧会话保留可随时切回；
+- 🔄 **会话切换保活**：终端 /new /resume /fork 后服务自动恢复，局域网手机自动重连，公网重打新二维码；
 - 🌐 **双通道秒级接入**：Cloudflare 临时公网穿透 URL（蜂窝网络可用）+ 局域网直连 URL（同 Wi-Fi 超低延迟）。
 
 ### 安装方式
@@ -123,6 +128,7 @@ pi install git:github.com/Feng-H/pi-anywhere
 ```text
 /anywhere          # 启动 —— 打印二维码与公网/局域网/本地 URL
 /anywhere status   # 重新查看 URL
+/anywhere restart  # 停止并重启
 /anywhere stop     # 关闭服务与隧道
 ```
 
@@ -132,7 +138,7 @@ pi install git:github.com/Feng-H/pi-anywhere
 
 - **兼容性**：同时支持 pi 0.8x 与 pi 1.x（已对照 1.5.1 测试）；
 - agent 运行中从手机发送的消息会**自动排队**，当前任务结束后送达（pi ≥ 1.2 行为）；
-- 在终端切换会话（`/new`、`/resume`、`/fork`）会重载扩展并断开手机连接，重新执行 `/anywhere` 即可获得新 URL；
+- 终端切换会话（/new /resume /fork）后服务**自动恢复**：局域网手机自动重连（同端口/token），公网 URL 会变并重打新二维码；/anywhere stop 后不再自动恢复。
 - 隧道优先 **http2（TCP 443）**（比 QUIC 在受限网络下更稳），并等待边缘连接注册成功后才打印二维码；隧道进程意外退出会**自动重连**并重新打印新二维码（域名会变，需重扫）。若手机端出现 Cloudflare *Error 1033*，说明当时隧道不可达：改用局域网地址或重新执行 `/anywhere`。
 
 ### 安全性

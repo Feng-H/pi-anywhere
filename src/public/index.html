@@ -691,8 +691,8 @@
   <!-- 快捷指令栏 -->
   <div class="quick-actions">
     <button class="action-btn" onclick="insertPrompt('/help')">/help</button>
-    <button class="action-btn" onclick="insertPrompt('/compact')">/compact</button>
-    <button class="action-btn" onclick="insertPrompt('/tree')">/tree</button>
+    <button class="action-btn" onclick="openTreeSheet()">🔀 分支</button>
+    <button class="action-btn" onclick="requestNewSession()">✨ 新会话</button>
     <button class="action-btn" onclick="sendPrompt('请继续')">请继续</button>
     <button class="action-btn" onclick="sendPrompt('帮我运行测试并检查结果')">运行测试</button>
   </div>
@@ -727,6 +727,14 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">思考等级</div>
     <div class="model-list" id="thinking-list"></div>
+  </div>
+
+  <!-- 会话树抽屉 -->
+  <div class="sheet-overlay" id="tree-sheet-overlay" onclick="closeTreeSheet()"></div>
+  <div class="model-sheet" id="tree-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">会话分支 · 点选切换</div>
+    <div class="model-list" id="tree-list"></div>
   </div>
 
   <script>
@@ -769,6 +777,9 @@
     const thinkingSheet = document.getElementById("thinking-sheet");
     const thinkingSheetOverlay = document.getElementById("thinking-sheet-overlay");
     const thinkingList = document.getElementById("thinking-list");
+    const treeSheet = document.getElementById("tree-sheet");
+    const treeSheetOverlay = document.getElementById("tree-sheet-overlay");
+    const treeList = document.getElementById("tree-list");
     const ctxFill = document.getElementById("ctx-fill");
     const ctxText = document.getElementById("ctx-text");
     const imageInput = document.getElementById("image-input");
@@ -889,6 +900,18 @@
           if (!data.ok) alert(data.error || "压缩失败");
           break;
 
+        case "tree":
+          renderTreeList(data.nodes || []);
+          break;
+
+        case "navigate_tree_result":
+          if (!data.ok) alert(data.error || "切换失败");
+          break;
+
+        case "new_session_result":
+          if (!data.ok) alert(data.error || "新建会话失败");
+          break;
+
         case "status":
           if (data.status === "waiting_terminal") {
             connectionDot.className = "dot waiting";
@@ -956,7 +979,12 @@
       bubble.className = "bubble";
 
       if (msg.role === "user") {
-        bubble.innerText = msg.text || (msg.images && msg.images.length ? "[图片]" : "");
+        let text = msg.text || "";
+        if (msg.images && msg.images.length > 0) {
+          // 服务端为终端可见性附加的图片占位注记，手机端已有缩略图，去重显示
+          text = text.replace(/\n*📎 \[pi-anywhere\] 已从手机附加[^\n]*/, "").trim();
+        }
+        bubble.innerText = text;
         if (msg.images && msg.images.length > 0) {
           const grid = document.createElement("div");
           grid.className = "bubble-images";
@@ -1411,6 +1439,74 @@
     function removeAttachedImage(i) {
       attachedImages.splice(i, 1);
       renderPreviewStrip();
+    }
+
+    // ===== 会话树 / 新会话 =====
+    function openTreeSheet() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("尚未连接到 Pi 终端");
+        return;
+      }
+      treeList.innerHTML = '<div class="model-empty">加载中...</div>';
+      treeSheet.classList.add("show");
+      treeSheetOverlay.classList.add("show");
+      ws.send(JSON.stringify({ type: "get_tree" }));
+    }
+
+    function closeTreeSheet() {
+      treeSheet.classList.remove("show");
+      treeSheetOverlay.classList.remove("show");
+    }
+
+    function renderTreeList(nodes) {
+      treeList.innerHTML = "";
+      if (!nodes.length) {
+        treeList.innerHTML = '<div class="model-empty">暂无会话记录</div>';
+        return;
+      }
+      const icons = { user: "👤", assistant: "🤖", compaction: "📦", branch_summary: "🌿" };
+      for (const n of nodes) {
+        const item = document.createElement("div");
+        item.className = "model-item tree-item" + (n.current ? " selected" : "");
+        item.style.paddingLeft = `${12 + (n.depth || 0) * 14}px`;
+        const icon = icons[n.kind] || "·";
+        const branchMark = n.branch ? ' <span style="color:var(--accent-amber)">⑂</span>' : "";
+        item.innerHTML = `
+          <div class="model-item-info">
+            <div class="model-item-name" style="font-weight:${n.current ? "600" : "400"}">${icon}${branchMark} ${escapeHtml(n.preview || n.id)}</div>
+          </div>
+          ${n.current ? '<span class="model-item-check">✓</span>' : ""}
+        `;
+        if (!n.current) {
+          item.onclick = () => navigateTree(n.id);
+        }
+        treeList.appendChild(item);
+      }
+    }
+
+    function navigateTree(entryId) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      if (!isIdle) {
+        alert("Pi 正在思考中，请等待当前任务完成后再切换");
+        return;
+      }
+      ws.send(JSON.stringify({ type: "navigate_tree", entryId: entryId }));
+      closeTreeSheet();
+      appendMessage({ id: `switching-${Date.now()}`, role: "system", text: "🔀 正在切换分支，服务将短暂重连..." });
+    }
+
+    function requestNewSession() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("尚未连接到 Pi 终端");
+        return;
+      }
+      if (!isIdle) {
+        alert("Pi 正在思考中，请等待当前任务完成");
+        return;
+      }
+      if (!confirm("新建会话？当前会话将保留，可随时用 🔀 分支切回。")) return;
+      ws.send(JSON.stringify({ type: "new_session" }));
+      appendMessage({ id: `switching-${Date.now()}`, role: "system", text: "✨ 正在新建会话，服务将短暂重连..." });
     }
 
     // 定期心跳

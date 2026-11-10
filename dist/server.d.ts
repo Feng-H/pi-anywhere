@@ -28,6 +28,17 @@ export interface ServerCallbacks {
         ok: boolean;
         error?: string;
     }>;
+    onNavigateTree?: (entryId: string) => Promise<{
+        ok: boolean;
+        error?: string;
+        switching?: boolean;
+    }>;
+    onNewSession?: () => Promise<{
+        ok: boolean;
+        error?: string;
+        switching?: boolean;
+    }>;
+    getTree?: () => any[];
     getInitialState: () => {
         model?: string;
         isIdle: boolean;

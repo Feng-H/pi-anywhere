@@ -9,6 +9,24 @@ let tunnel = null;
 let publicUrl = null;
 let authToken = crypto.randomBytes(6).toString("hex");
 let currentContext = null;
+const g = globalThis;
+function getMarker() {
+    const m = g.__piAnywhereMarker;
+    if (!m || m.pid !== process.pid)
+        return null;
+    if (m.cwd !== process.cwd()) {
+        // 新会话进入了不同工作目录（项目切换）：不自动恢复
+        clearMarker();
+        return null;
+    }
+    return m;
+}
+function setMarker(port, token) {
+    g.__piAnywhereMarker = { pid: process.pid, cwd: process.cwd(), port, token };
+}
+function clearMarker() {
+    delete g.__piAnywhereMarker;
+}
 // message_update 节流：避免长回复流式时每次 token 都全量广播（隧道流量放大）
 const UPDATE_THROTTLE_MS = 120;
 let lastUpdateSentAt = 0;
@@ -72,12 +90,24 @@ function broadcastContextUsage() {
     catch { }
 }
 export default function (pi) {
-    // 保存活跃 context
+    // 保存活跃 context；若之前在本进程中运行过（会话切换重载扩展），自动恢复服务
     pi.on("session_start", (_event, ctx) => {
         currentContext = ctx;
+        const marker = getMarker();
+        if (marker && !server) {
+            console.log(chalk.dim("[pi-anywhere] 检测到会话切换，正在自动恢复远程访问服务..."));
+            startAnywhere(pi, ctx, { port: marker.port, token: marker.token, subtitle: "服务已随会话切换自动恢复 · 公网请重新扫码，局域网将自动重连" })
+                .catch((err) => {
+                console.error(chalk.red(`[pi-anywhere] 自动恢复失败: ${err?.message || err}`));
+            });
+        }
     });
-    // 退出时释放资源
-    pi.on("session_shutdown", async () => {
+    // 退出/会话替换时释放资源：quit 彻底清除意图标记；
+    // 其他原因（new/resume/fork/reload）保留标记，待新 session_start 自动恢复
+    pi.on("session_shutdown", async (event) => {
+        if (event?.reason === "quit") {
+            clearMarker();
+        }
         await stopAnywhere();
     });
     // 状态与生命周期事件
@@ -240,6 +270,7 @@ export default function (pi) {
                     ctx.ui.notify("pi-anywhere 当前未运行", "info");
                     return;
                 }
+                clearMarker();
                 await stopAnywhere();
                 ctx.ui.notify("pi-anywhere 服务与隧道已停止", "info");
                 return;
@@ -252,8 +283,11 @@ export default function (pi) {
                 printAccessInfo(publicUrl, server.lanUrl, server.localUrl);
                 return;
             }
-            // 默认 start
-            if (server && publicUrl) {
+            if (cmd === "restart") {
+                await stopAnywhere();
+                console.log(chalk.dim("[pi-anywhere] 已停止，正在重新启动..."));
+            }
+            else if (server && publicUrl) {
                 // 不用 ui.notify：toast 会覆盖在二维码上导致扫不了码，改为横幅内标注
                 printAccessInfo(publicUrl, server.lanUrl, server.localUrl, "服务已在运行 · 下为现有连接 URL");
                 return;
@@ -268,14 +302,35 @@ export default function (pi) {
             }
         },
     });
+    // 手机端会话操作桥：WS 回调里拿不到命令 ctx（事件 ctx 无 newSession/navigateTree），
+    // 通过 sendUserMessage + expandPromptTemplates 派发到这些命令，
+    // 每次派发都会拿到绑定当前会话的新鲜命令 ctx，避免会话替换后的陈旧引用
+    pi.registerCommand("anywhere-new", {
+        description: "[pi-anywhere] 手机端触发：新建会话",
+        handler: async (_args, ctx) => {
+            if (!ctx.isIdle())
+                return;
+            await ctx.newSession();
+        },
+    });
+    pi.registerCommand("anywhere-nav", {
+        description: "[pi-anywhere] 手机端触发：切换会话分支",
+        handler: async (args, ctx) => {
+            const targetId = args.trim();
+            if (!targetId || !ctx.isIdle())
+                return;
+            await ctx.navigateTree(targetId);
+        },
+    });
 }
-async function startAnywhere(pi, ctx) {
+async function startAnywhere(pi, ctx, opts = {}) {
     if (server) {
         await stopAnywhere();
     }
-    authToken = crypto.randomBytes(6).toString("hex");
+    // 复用 token/端口（会话切换自动恢复场景）：局域网 URL 不变，手机端可自动重连
+    authToken = opts.token ?? crypto.randomBytes(6).toString("hex");
     // 1. 启动 Web/WS Server
-    server = await startServer(0, authToken, {
+    server = await startServer(opts.port ?? 0, authToken, {
         onUserMessage: async (text, images) => {
             // pi >= 1.x 支持内容数组：文本 + 图片（base64 无前缀）
             let content = text;
@@ -366,6 +421,28 @@ async function startAnywhere(pi, ctx) {
                 return { ok: false, error: err?.message || String(err) };
             }
         },
+        getTree: () => buildTreeList(),
+        onNavigateTree: async (entryId) => {
+            if (!currentContext) {
+                return { ok: false, error: "无活跃会话" };
+            }
+            if (!currentContext.isIdle()) {
+                return { ok: false, error: "Pi 正在思考中，请等待当前任务完成后再切换" };
+            }
+            // 会话操作需要命令 ctx：经辅助命令派发，保证绑定当前会话
+            pi.sendUserMessage(`/anywhere-nav ${entryId}`, { expandPromptTemplates: true });
+            return { ok: true, switching: true };
+        },
+        onNewSession: async () => {
+            if (!currentContext) {
+                return { ok: false, error: "无活跃会话" };
+            }
+            if (!currentContext.isIdle()) {
+                return { ok: false, error: "Pi 正在思考中，请等待当前任务完成后再新建" };
+            }
+            pi.sendUserMessage("/anywhere-new", { expandPromptTemplates: true });
+            return { ok: true, switching: true };
+        },
         getInitialState: () => {
             const isIdle = currentContext ? currentContext.isIdle() : true;
             const model = currentContext?.model ? `${currentContext.model.provider}/${currentContext.model.id}` : undefined;
@@ -422,9 +499,11 @@ async function startAnywhere(pi, ctx) {
         },
     });
     publicUrl = `${tunnel.url}/?token=${authToken}`;
+    // 记录运行意图：会话切换重载扩展后由 session_start 自动恢复
+    setMarker(server.port, authToken);
     // 3. 打印展示访问信息与二维码。注意：不要在二维码附近再调 ui.notify，
     //    toast 会覆盖在二维码上导致扫不了码；状态提示全部用 console.log 保证顺序。
-    printAccessInfo(publicUrl, server.lanUrl, server.localUrl);
+    printAccessInfo(publicUrl, server.lanUrl, server.localUrl, opts.subtitle);
 }
 async function stopAnywhere() {
     if (tunnel) {
@@ -442,6 +521,59 @@ async function stopAnywhere() {
         server = null;
     }
     publicUrl = null;
+}
+/**
+ * 扁平化会话树（DFS，保留缩进深度），供手机端分支切换 UI；只取最近 100 条防止巨大会话棗爆手机端。
+ */
+function buildTreeList() {
+    const sm = currentContext?.sessionManager;
+    if (!sm?.getTree)
+        return [];
+    let leafId = null;
+    try {
+        leafId = sm.getLeafId();
+    }
+    catch { }
+    const out = [];
+    const walk = (nodes, depth) => {
+        for (const n of nodes) {
+            const e = n?.entry;
+            if (!e)
+                continue;
+            let preview = n.label || "";
+            let kind = e.type;
+            if (e.type === "message" && e.message) {
+                kind = e.message.role;
+                if (!preview) {
+                    preview = extractTextFromMessage(e.message).split("\n").find((l) => l.trim()) || "";
+                }
+            }
+            else if (e.type === "compaction") {
+                preview = preview || "📦 会话压缩点";
+            }
+            else if (e.type === "branch_summary") {
+                preview = preview || "🌿 分支摘要";
+            }
+            out.push({
+                id: e.id,
+                depth,
+                label: n.label,
+                preview: String(preview || "").slice(0, 80),
+                kind,
+                branch: (n.children?.length || 0) > 1,
+                current: e.id === leafId,
+            });
+            if (n.children?.length)
+                walk(n.children, depth + 1);
+        }
+    };
+    try {
+        walk(sm.getTree() || [], 0);
+    }
+    catch (e) {
+        console.error("[pi-anywhere] Failed to build tree:", e);
+    }
+    return out.slice(-100);
 }
 /**
  * 获取可切换的模型列表：优先返回会话 scoped 模型（--models / enabledModels），
