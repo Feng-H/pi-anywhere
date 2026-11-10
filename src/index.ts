@@ -54,6 +54,24 @@ let pendingUpdateText = "";
 // 已通过 tool_result 事件广播过结果的调用 id（tool_execution_end 兕底去重用）
 const broadcastedToolResults = new Set<string>();
 
+// 会话累计成本（USD，catalog 估算）；init 时从全部会话条目重算
+let sessionCost = 0;
+
+function computeSessionCost(): number {
+  let total = 0;
+  try {
+    const entries = (currentContext as any)?.sessionManager?.getEntries?.() || [];
+    for (const entry of entries) {
+      const msg = entry?.type === "message" ? entry.message : null;
+      if (msg?.role === "assistant") {
+        const cost = msg.usage?.cost?.total;
+        if (typeof cost === "number") total += cost;
+      }
+    }
+  } catch {}
+  return total;
+}
+
 function broadcastAssistantUpdateThrottled(id: any, text: string) {
   const now = Date.now();
   if (now - lastUpdateSentAt >= UPDATE_THROTTLE_MS) {
@@ -226,6 +244,12 @@ export default function (pi: ExtensionAPI) {
         id: (event.message as any).id,
         text,
       });
+      // 累计会话成本并广播（catalog 估算值，部分 provider 可能缺失）
+      const cost = (event.message as any).usage?.cost?.total;
+      if (typeof cost === "number") {
+        sessionCost += cost;
+        server?.broadcast({ type: "session_cost", cost: sessionCost });
+      }
       broadcastContextUsage();
     }
   });
@@ -602,7 +626,7 @@ function buildTreeList(): any[] {
   } catch (e) {
     console.error("[pi-anywhere] Failed to build tree:", e);
   }
-  return out.slice(-100);
+  return out; // 分页由 server 层按 offset 切片
 }
 
 /**

@@ -25,6 +25,9 @@ Traditional remote-terminal solutions (SSH / web terminals) are painful on a pho
 - 🛠️ **Collapsible tool-call panels** — `bash` / `edit` / `read` executions render as neat collapsed cards; tap to expand details.
 - 🌿 **Branch switching from your phone** — a 🔀 button opens the session tree (indented, latest 100 entries); tap any entry to switch branches. ✨ starts a new session; the old one stays reachable via the tree.
 - 🔄 **Survives session switches** — `/new`, `/resume`, `/fork`, `/reload` in the terminal auto-restart the service (same port + token), so LAN phones reconnect automatically; a fresh public QR is printed.
+- 🔔 **Done notifications** — lock the phone after sending a task; get a Web Notification (+ vibration / title flash fallback) when the run finishes.
+- 📨 **Queue while thinking** — smart send button: with text typed while the agent is busy it queues the message (followUp); with an empty input it becomes ⏹ abort.
+- 💰 **Session cost** — cumulative `$` spend shown next to the context bar.
 - 🌐 **Dual-channel access** — a public Cloudflare Quick Tunnel URL (works on cellular) plus a LAN URL (lowest latency on the same Wi-Fi).
 
 ## Install
@@ -103,6 +106,9 @@ Uplink channels: `pi.sendUserMessage()` (phone messages, images, `/commands`), `
 - 🛠️ **工具调用智能折叠**：Agent 执行 `bash` / `edit` / `read` 时自动折叠显示，点开才展开详情，不刷屏；
 - 🌿 **手机端分支切换**：🔀 按钮打开会话树，点选任意条目切到该分支；✨ 新建会话，旧会话保留可随时切回；
 - 🔄 **会话切换保活**：终端 /new /resume /fork 后服务自动恢复，局域网手机自动重连，公网重打新二维码；
+- 🔔 **任务完成通知**：发送任务后锁屏，完成时推送通知（+震动/标题闪烁兑底）；
+- 📨 **思考中排队发消息**：智能发送按钮，有输入即发送（自动排队），空输入即 ⏹ 中止；
+- 💰 **会话成本**：ctx 条旁实时显示累计消费；
 - 🌐 **双通道秒级接入**：Cloudflare 临时公网穿透 URL（蜂窝网络可用）+ 局域网直连 URL（同 Wi-Fi 超低延迟）。
 
 ### 安装方式

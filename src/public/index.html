@@ -141,6 +141,29 @@
     }
     #ctx-compact-btn:active { color: var(--text-primary); }
 
+    /* 公网地址更新横幅 */
+    #public-url-banner {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(245, 158, 11, 0.12);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.72rem;
+      color: var(--accent-amber);
+    }
+    #public-url-banner a { color: var(--accent-blue); text-decoration: underline; word-break: break-all; }
+    #public-url-banner button {
+      margin-left: auto;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
     /* 思考等级标签 */
     #thinking-display { max-width: 96px; }
 
@@ -678,8 +701,16 @@
   <!-- 上下文用量条 -->
   <div id="ctx-bar">
     <div class="ctx-track"><div class="ctx-fill" id="ctx-fill"></div></div>
+    <span id="cost-text" style="display:none"></span>
     <span id="ctx-text">—</span>
     <button id="ctx-compact-btn" onclick="requestCompact()">压缩</button>
+  </div>
+
+  <!-- 公网地址更新横幅（隧道重连后局域网客户端可见） -->
+  <div id="public-url-banner" style="display:none">
+    <span>🌐 公网地址已更新</span>
+    <a id="public-url-link" href="#">点此切换</a>
+    <button onclick="dismissPublicBanner()">✕</button>
   </div>
 
   <!-- 消息内容区 -->
@@ -782,6 +813,9 @@
     const treeList = document.getElementById("tree-list");
     const ctxFill = document.getElementById("ctx-fill");
     const ctxText = document.getElementById("ctx-text");
+    const costText = document.getElementById("cost-text");
+    const publicUrlBanner = document.getElementById("public-url-banner");
+    const publicUrlLink = document.getElementById("public-url-link");
     const imageInput = document.getElementById("image-input");
     const imagePreviewStrip = document.getElementById("image-preview-strip");
 
@@ -892,6 +926,14 @@
           updateCtxBar(data);
           break;
 
+        case "session_cost":
+          updateCostBar(data.cost);
+          break;
+
+        case "public_url":
+          updatePublicBanner(data.url);
+          break;
+
         case "session_name":
           setSessionName(data.name);
           break;
@@ -901,7 +943,7 @@
           break;
 
         case "tree":
-          renderTreeList(data.nodes || []);
+          handleTreePage(data);
           break;
 
         case "navigate_tree_result":
@@ -917,7 +959,9 @@
             connectionDot.className = "dot waiting";
             connectionText.innerText = "等待终端确认";
           } else {
-            setAgentIdleState(data.status === "idle");
+            const becameIdle = data.status === "idle";
+            setAgentIdleState(becameIdle);
+            if (becameIdle) notifyAgentDone();
           }
           break;
 
@@ -951,14 +995,23 @@
       if (isIdle) {
         connectionDot.className = "dot";
         connectionText.innerText = "就绪";
-        sendBtn.className = "action-circle-btn";
-        sendIcon.innerText = "↑";
         removeTypingCursor();
       } else {
         connectionDot.className = "dot thinking";
         connectionText.innerText = "思考中";
+      }
+      updateSendButtonState();
+    }
+
+    // 智能发送按钮：agent 思考中且无输入内容 → ⏹ 中止；有内容 → ↑ 发送（自动排队）
+    function updateSendButtonState() {
+      const hasContent = chatInput.value.trim().length > 0 || attachedImages.length > 0;
+      if (!isIdle && !hasContent) {
         sendBtn.className = "action-circle-btn abort";
         sendIcon.innerText = "⏹";
+      } else {
+        sendBtn.className = "action-circle-btn";
+        sendIcon.innerText = "↑";
       }
     }
 
@@ -1045,6 +1098,8 @@
           bubble.innerHTML = renderMarkdown(text || activeAssistantText);
         }
       }
+      const snippet = (text || activeAssistantText || "").replace(/\s+/g, " ").trim();
+      if (snippet) lastAssistantSnippet = snippet.slice(0, 60);
       activeAssistantMsgId = null;
       activeAssistantText = "";
       if (autoScroll) scrollToBottom();
@@ -1217,24 +1272,29 @@
       }));
     }
 
-    // 发送与停止控制
+    // 发送与停止控制：思考中输入内容并发送 = 排队 followUp；空输入时按钮 = ⏹ 中止
     function handleSendAction() {
-      if (!isIdle) {
+      const text = chatInput.value.trim();
+      const hasContent = text || attachedImages.length > 0;
+
+      if (!isIdle && !hasContent) {
         // 中止
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: "abort" }));
         }
         return;
       }
+      if (!hasContent) return;
 
-      const text = chatInput.value.trim();
-      if (!text && attachedImages.length === 0) return;
-
+      if (!isIdle) {
+        appendMessage({ id: `queued-${Date.now()}`, role: "system", text: `📨 消息已排队，当前任务结束后送达` });
+      }
       sendPrompt(text, attachedImages);
       attachedImages = [];
       renderPreviewStrip();
       chatInput.value = "";
       chatInput.style.height = "auto";
+      updateSendButtonState();
     }
 
     function sendPrompt(text, images = []) {
@@ -1242,6 +1302,7 @@
         alert("尚未连接到 Pi 终端");
         return;
       }
+      ensureNotificationPermission();
       const payload = { type: "send_message", text: text };
       if (images && images.length > 0) payload.images = images;
       ws.send(JSON.stringify(payload));
@@ -1256,6 +1317,7 @@
     chatInput.addEventListener("input", () => {
       chatInput.style.height = "auto";
       chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + "px";
+      updateSendButtonState();
     });
 
     chatInput.addEventListener("keydown", (e) => {
@@ -1441,16 +1503,87 @@
       renderPreviewStrip();
     }
 
+    let lastAssistantSnippet = "";
+
+    // ===== 任务完成通知（锁屏/切后台场景）=====
+    function ensureNotificationPermission() {
+      try {
+        if ("Notification" in window && Notification.permission === "default") {
+          Notification.requestPermission().catch(() => {});
+        }
+      } catch {}
+    }
+
+    let titleFlashTimer = null;
+    let baseTitle = "Pi Anywhere";
+
+    function notifyAgentDone() {
+      // 仅在页面不可见时提醒（看屏时不打扰）
+      if (!document.hidden) return;
+      try {
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("✅ Pi 任务完成", {
+            body: lastAssistantSnippet || "点击查看结果",
+            tag: "pi-anywhere-done",
+          });
+        }
+      } catch {}
+      try { navigator.vibrate && navigator.vibrate(200); } catch {}
+      // 标题闪烁兑底（不支持 Notification 的浏览器，如未安装到主屏的 iOS Safari）
+      if (!titleFlashTimer) {
+        let on = false;
+        titleFlashTimer = setInterval(() => {
+          document.title = (on = !on) ? "🔔 Pi 任务完成！" : baseTitle;
+        }, 1000);
+      }
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && titleFlashTimer) {
+        clearInterval(titleFlashTimer);
+        titleFlashTimer = null;
+        document.title = baseTitle;
+      }
+    });
+
+    // ===== 成本显示 / 公网地址横幅 =====
+    function updateCostBar(cost) {
+      if (typeof cost !== "number" || !(cost > 0)) return;
+      costText.style.display = "inline";
+      costText.innerText = cost >= 1 ? `$${cost.toFixed(2)}` : `$${cost.toFixed(4)}`;
+    }
+
+    function updatePublicBanner(url) {
+      if (!url) return;
+      try {
+        if (new URL(url).host === window.location.host) return; // 已在公网地址上
+      } catch { return; }
+      publicUrlLink.href = url;
+      publicUrlBanner.style.display = "flex";
+    }
+
+    function dismissPublicBanner() {
+      publicUrlBanner.style.display = "none";
+    }
+
     // ===== 会话树 / 新会话 =====
+    let treeNodesLoaded = [];
+    let treeHasMore = false;
+    let treeCurrentOffset = null; // null = 尚未加载
+    let treePrevOffset = 0;
+
     function openTreeSheet() {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         alert("尚未连接到 Pi 终端");
         return;
       }
+      treeNodesLoaded = [];
+      treeHasMore = false;
+      treeCurrentOffset = null;
       treeList.innerHTML = '<div class="model-empty">加载中...</div>';
       treeSheet.classList.add("show");
       treeSheetOverlay.classList.add("show");
-      ws.send(JSON.stringify({ type: "get_tree" }));
+      ws.send(JSON.stringify({ type: "get_tree" })); // 不带 offset = 最新一页
     }
 
     function closeTreeSheet() {
@@ -1458,9 +1591,34 @@
       treeSheetOverlay.classList.remove("show");
     }
 
+    function handleTreePage(data) {
+      const nodes = data.nodes || [];
+      if (treeCurrentOffset !== null && data.offset < treeCurrentOffset) {
+        treeNodesLoaded = nodes.concat(treeNodesLoaded); // 更早的分页前差入
+      } else {
+        treeNodesLoaded = nodes; // 重新打开 / 刷新
+      }
+      treeCurrentOffset = data.offset;
+      treeHasMore = !!data.hasMore;
+      treePrevOffset = data.prevOffset ?? 0;
+      renderTreeList(treeNodesLoaded);
+    }
+
+    function loadMoreTree() {
+      if (!ws || ws.readyState !== WebSocket.OPEN || !treeHasMore) return;
+      ws.send(JSON.stringify({ type: "get_tree", offset: treePrevOffset }));
+    }
+
     function renderTreeList(nodes) {
       treeList.innerHTML = "";
-      if (!nodes.length) {
+      if (treeHasMore) {
+        const more = document.createElement("div");
+        more.className = "model-item";
+        more.innerHTML = '<div class="model-item-info"><div class="model-item-name" style="color:var(--accent-blue)">⬆ 加载更早的记录</div></div>';
+        more.onclick = loadMoreTree;
+        treeList.appendChild(more);
+      }
+      if (!nodes.length && !treeHasMore) {
         treeList.innerHTML = '<div class="model-empty">暂无会话记录</div>';
         return;
       }

@@ -49,6 +49,8 @@ export interface ServerCallbacks {
         modelReasoning?: boolean;
         thinkingLevel?: string;
         contextUsage?: RemoteContextUsage;
+        sessionCost?: number;
+        publicUrl?: string;
     };
 }
 export interface AnywhereServer {

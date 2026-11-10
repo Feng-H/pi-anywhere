@@ -45,6 +45,8 @@ export interface ServerCallbacks {
     modelReasoning?: boolean;
     thinkingLevel?: string;
     contextUsage?: RemoteContextUsage;
+    sessionCost?: number;
+    publicUrl?: string;
   };
 }
 
@@ -185,7 +187,23 @@ export function startServer(port: number = 0, token: string, callbacks: ServerCa
             const result = await callbacks.onCompact?.() ?? { ok: false, error: "不支持" };
             ws.send(JSON.stringify({ type: "compact_result", ...result }));
           } else if (payload.type === "get_tree") {
-            ws.send(JSON.stringify({ type: "tree", nodes: callbacks.getTree?.() ?? [] }));
+            // 分页：默认取最后一页（最新记录），offset 向前回溯更早记录
+            const full = callbacks.getTree?.() ?? [];
+            const PAGE = 100;
+            let offset: number;
+            if (payload.offset === undefined || payload.offset === null || payload.offset === "") {
+              offset = Math.max(0, full.length - PAGE);
+            } else {
+              offset = Math.max(0, Math.min(Number(payload.offset) || 0, Math.max(0, full.length - 1)));
+            }
+            ws.send(JSON.stringify({
+              type: "tree",
+              nodes: full.slice(offset, offset + PAGE),
+              offset,
+              total: full.length,
+              hasMore: offset > 0,
+              prevOffset: Math.max(0, offset - PAGE),
+            }));
           } else if (payload.type === "navigate_tree" && typeof payload.entryId === "string") {
             const result = await callbacks.onNavigateTree?.(payload.entryId)
               ?? { ok: false, error: "不支持" };
