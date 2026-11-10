@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-11-11
+
+### Fixed
+
+- 手机上传的图片在本机（终端）对话里完全不可见：pi 的 TUI 只渲染用户消息的 text block，image block 本就不显示，且 `sendUserMessage` 路径在图片无需 resize 时不会追加任何注记。现在发图时自动在 text block 附加 `📎 [pi-anywhere] 已从手机附加 N 张图片（mime…）` 占位注记（与 pi 原生 resize hints 风格一致），终端与模型上下文均可感知图片存在。
+
 ## [0.5.0] - 2026-11-11
 
 ### Added

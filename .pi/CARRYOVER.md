@@ -1,28 +1,26 @@
 # pi-anywhere 工作承接
 
 ## 当前状态
-- **v0.4.2 已完成并推送**（master + tag v0.4.2，commit fffec22；0.4.0/0.4.1 tag 存在但均未发布 npm，最新待发即 0.4.2）：
-  - v0.4.0：pi 1.x 兼容修复（tool_result content 形态、sendUserMessage deliverAs 排队、getLanIp 优先级、CLI 版本同步、devDeps 升 ^1.5.1、CHANGELOG.md、README 兼容性说明）
-  - v0.4.1：修复 ui.notify toast 覆盖二维码导致扫不了码（二维码附近 toast 全改 console.log）
-  - v0.4.2：修复扫码 Cloudflare Error 1033 —— 等 Registered tunnel connection 才出码；http2+IPv4 优先（QUIC/UDP 被掐网络下稳）失败回退默认协议；--no-autoupdate；意外退出自动重连(≤3)并重打新二维码，README 增加 1033 说明
-- 实测：隧道 7.6s 就绪，公网 URL 经边缘返回本地服务 HTTP 200；tsc 全绿。
+- **v0.5.0（阶段二）已完成并推送**（master + tag v0.5.0，commit 68c79c7）。0.4.0~0.4.2 均未发布 npm，最新待发即 0.5.0：
+  - v0.4.0：pi 1.x 兼容（tool_result content、sendUserMessage deliverAs、getLanIp、devDeps ^1.5.1、CHANGELOG）
+  - v0.4.1：二维码被 ui.notify toast 覆盖修复
+  - v0.4.2：Error 1033 修复（注册门控、http2 优先、自动重连）
+  - v0.5.0：图片上传（≤4张/自动缩放1568px）、思考等级切换（🧠标签双向同步）、上下文用量条+一键压缩、会话名同步标签页标题、"等待终端确认"状态、tool_execution_end 兜底、中止提示、message_update 120ms 节流
+- 验证：tsc 对 1.5.1 全绿；E2E WS 冒烟（init 新字段/图片上行/thinking/compact 路由/新事件注册）全过；npm pack 干净。
 - **待用户在真实终端（TTY）执行发布**：
   `cd /Users/apple/pidev/pi-anywhere && npm publish --access public --registry=https://registry.npmjs.com/`
-  （AI 不代发，见 AGENTS.md 分工铁律）
-- 发布后建议实测：pi update → /anywhere 连续两次验证二维码可扫、扫码公网直达无 1033、pi 1.x 下手机端工具结果卡片正常、agent 运行中手机连发消息排队送达
+- 发布后实测清单：pi update → /anywhere → ①📎 发图（拍照+相册）看 agent 能读图 ②🧠 切思考等级与终端同步 ③用量条随回复增长、压缩按钮可用 ④agent 运行中手机发消息排队 ⑤长回复流式顺滑
 
-## 待办（v0.5.0 候选，用户确认 v0.4.2 稳定后启动）
-- [ ] 手机端图片上传：WS 消息 + 前端 file input → `pi.sendUserMessage([{type:"text"},{type:"image",data,mimeType}])`（pi 1.x 已支持）
-- [ ] thinking level 手机端切换：`pi.get/setThinkingLevel()` + `thinking_level_select` 事件双向同步
-- [ ] 顶部 context 用量条：`ctx.getContextUsage()`；一键压缩按钮：`ctx.compact({customInstructions})`
-- [ ] `tool_execution_end` 兜底捕获被 block/aborted 的调用（这些不发 tool_result 事件）
-- [ ] `session_info_changed` 事件同步会话名到手机端
-- [ ] 可选：`ui_prompt_start/end` → 手机端提示"Pi 正在等待终端确认"
-- [ ] 可选优化：message_update 增量/节流广播（长回复隧道流量放大）
-- [ ] 可选：隧道重连失败后的用户手动重试命令（/anywhere restart 语义拆分）
+## 待办（v0.6.0 候选）
+- [ ] `session_shutdown`(reason≠quit) 后新 session 自动重启服务（跨 /new /resume /fork 保活，需持久化意图标记）
+- [ ] /anywhere restart 子命令（拆分重启语义）
+- [ ] 手机端查看会话树 / 分支切换（ctx.navigateTree / fork）
+- [ ] 手机端 /tree /new /resume 等命令映射按钮（部分依赖上一条）
+- [ ] 多设备连接时工具结果等广播的增量优化（diff/压缩）
 
 ## 关键决策记录
-- 二维码附近禁止 ui.notify（toast 浮层会覆盖码面），状态提示一律 console.log 保证顺序 —— 已在代码注释中固化
-- 隧道就绪判定 = URL 出现 + Registered tunnel connection；协议顺序 http2+IPv4 → 默认 QUIC —— tunnel.ts 已固化
-- `session_shutdown` 在 pi 1.x 会因 /new /resume /fork reload 触发 → 仅 README 说明（重跑 /anywhere），自动重启留待 v0.5 评估
-- tool_result 兼容层同时支持 1.x（content 数组）与 0.85（result.content），wire format `result` 保持字符串，前端无需改动
+- 二维码附近禁止 ui.notify（toast 覆盖码面），状态提示一律 console.log —— 代码注释已固化
+- 隧道就绪判定 = URL + Registered tunnel connection；协议顺序 http2+IPv4 → QUIC —— tunnel.ts 已固化
+- tool_result 兼容 1.x（content 数组）与 0.85（result.content）；wire format `result` 保持字符串
+- 图片上行仅在 pi ≥ 1.x 可用（0.85 sendUserMessage 无内容数组），前端无版本判断——README 已注明 pi ≥ 1.x
+- thinking level 切换后以 pi.getThinkingLevel() 实际值（可能被 clamp）广播，前端幂等渲染

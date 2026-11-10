@@ -306,11 +306,13 @@ async function startAnywhere(pi: ExtensionAPI, ctx: ExtensionContext) {
       // pi >= 1.x 支持内容数组：文本 + 图片（base64 无前缀）
       let content: string | any[] = text;
       if (images && images.length > 0) {
-        content = [];
-        if (text) (content as any[]).push({ type: "text", text });
-        for (const img of images) {
-          (content as any[]).push({ type: "image", data: img.data, mimeType: img.mimeType });
-        }
+        // 终端 TUI 只渲染用户消息的 text block（image block 不可见），
+        // 附加占位注记让本机对话里能看到图片存在（与 pi 原生 resize hints 风格一致）
+        const note = `📎 [pi-anywhere] 已从手机附加 ${images.length} 张图片（${[...new Set(images.map((i) => i.mimeType))].join(", ")}）`;
+        content = [
+          { type: "text", text: text ? `${text}\n\n${note}` : note },
+          ...images.map((img) => ({ type: "image", data: img.data, mimeType: img.mimeType })),
+        ];
       }
       // pi >= 1.2: agent 运行中必须指定 deliverAs，否则消息被拒绝
       const idle = currentContext ? currentContext.isIdle() : true;
