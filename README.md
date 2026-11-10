@@ -53,6 +53,7 @@ Notes:
 - **Compatibility**: works with both pi 0.8x and pi 1.x (tested against 1.5.1).
 - Messages sent from the phone while the agent is running are **queued** and delivered when the current run finishes (pi ≥ 1.2 behavior).
 - Switching sessions in the terminal (`/new`, `/resume`, `/fork`) reloads extensions and tears down the mobile connection — re-run `/anywhere` to get a fresh URL.
+- The tunnel prefers **http2 over TCP 443** (more reliable than QUIC on restricted networks), waits until the edge connection is registered before printing the QR code, and **auto-reconnects** if the tunnel process dies (a new URL is printed — re-scan). If you ever see Cloudflare *Error 1033*, it means the tunnel was unreachable at that moment; use the LAN URL or re-run `/anywhere`.
 
 ## Security
 
@@ -123,7 +124,8 @@ pi install git:github.com/Feng-H/pi-anywhere
 
 - **兼容性**：同时支持 pi 0.8x 与 pi 1.x（已对照 1.5.1 测试）；
 - agent 运行中从手机发送的消息会**自动排队**，当前任务结束后送达（pi ≥ 1.2 行为）；
-- 在终端切换会话（`/new`、`/resume`、`/fork`）会重载扩展并断开手机连接，重新执行 `/anywhere` 即可获得新 URL。
+- 在终端切换会话（`/new`、`/resume`、`/fork`）会重载扩展并断开手机连接，重新执行 `/anywhere` 即可获得新 URL；
+- 隧道优先 **http2（TCP 443）**（比 QUIC 在受限网络下更稳），并等待边缘连接注册成功后才打印二维码；隧道进程意外退出会**自动重连**并重新打印新二维码（域名会变，需重扫）。若手机端出现 Cloudflare *Error 1033*，说明当时隧道不可达：改用局域网地址或重新执行 `/anywhere`。
 
 ### 安全性
 

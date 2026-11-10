@@ -230,8 +230,19 @@ async function startAnywhere(pi, ctx) {
             };
         },
     });
-    // 2. 启动 Cloudflare Tunnel
-    tunnel = await startTunnel(server.port);
+    // 2. 启动 Cloudflare Tunnel（http2 优先 + 边缘注册确认 + 意外退出自动重连）
+    tunnel = await startTunnel(server.port, {
+        onAutoRestart: (newUrl, restartCount) => {
+            // 隧道重连后临时域名会变，重新打印横幅与二维码供手机重扫
+            // （不用 ui.notify，避免 toast 覆盖二维码）
+            publicUrl = `${newUrl}/?token=${authToken}`;
+            printAccessInfo(publicUrl, server.lanUrl, server.localUrl, `隧道已自动重连 (${restartCount}) · 请重新扫码`);
+        },
+        onGiveUp: () => {
+            console.error(chalk.red.bold("[pi-anywhere] 公网隧道多次重连失败，公网地址已失效。"));
+            console.error(chalk.yellow("  局域网地址仍可正常使用；重新执行 /anywhere 可再次尝试建立公网隧道。"));
+        },
+    });
     publicUrl = `${tunnel.url}/?token=${authToken}`;
     // 3. 打印展示访问信息与二维码。注意：不要在二维码附近再调 ui.notify，
     //    toast 会覆盖在二维码上导致扫不了码；状态提示全部用 console.log 保证顺序。

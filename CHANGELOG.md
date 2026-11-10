@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.2] - 2026-11-10
+
+### Fixed
+
+- 修复扫码后 Cloudflare **Error 1033**（边缘节点找不到活跃隧道）：
+  - 必须等到 `Registered tunnel connection`（边缘连接注册成功）才返回二维码，杜绝"URL 已分配但未注册"即扫码；
+  - 隧道主路径强制 `--protocol http2 --edge-ip-version 4`（TCP 443，在 UDP/QUIC 被限制的网络下连通性远好于默认 QUIC），失败时回退默认协议重试；
+  - 增加 `--no-autoupdate`，避免 cloudflared 自更新重启导致连接闪断；
+  - 隧道进程意外退出时自动重连（最多 3 次），重连后重新打印新二维码，多次失败则提示改用局域网地址。
+
 ## [0.4.1] - 2026-11-10
 
 ### Fixed
