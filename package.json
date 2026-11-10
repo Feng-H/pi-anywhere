@@ -1,6 +1,6 @@
 {
   "name": "pi-anywhere",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Native remote mobile Web Chat interface for Pi Coding Agent via Cloudflare Tunnel",
   "type": "module",
   "bin": {

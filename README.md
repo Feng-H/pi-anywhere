@@ -19,6 +19,9 @@ Traditional remote-terminal solutions (SSH / web terminals) are painful on a pho
 - 📱 **Mobile-first Chat interface** — touch-optimized: Markdown rendering, code blocks, auto-growing input box.
 - ⚡ **True real-time mirroring** — type on the computer, the phone streams it live; type on the phone, the computer-side agent starts working instantly; one tap "⏹ Stop" aborts the current run.
 - 🤖 **Switch models from your phone** — tap the model tag in the header to open a bottom-sheet model picker (grouped by provider); selection syncs back to the desktop pi session, and desktop-side switches mirror to the phone too.
+- 🧠 **Thinking level control** — a 🧠 tag (reasoning models only) opens a six-level picker; changes sync both ways with the desktop session.
+- 🖼️ **Send images** — attach up to 4 photos/screenshots (auto-downscaled to ≤1568px) alongside your message; images in history are rendered too (pi ≥ 1.x).
+- 📊 **Context usage bar + one-tap compact** — live `tokens / window · %` under the header (amber ≥60%, red ≥80%) with a compact button that triggers `ctx.compact()`.
 - 🛠️ **Collapsible tool-call panels** — `bash` / `edit` / `read` executions render as neat collapsed cards; tap to expand details.
 - 🌐 **Dual-channel access** — a public Cloudflare Quick Tunnel URL (works on cellular) plus a LAN URL (lowest latency on the same Wi-Fi).
 
@@ -67,11 +70,13 @@ Extension-API event streams drive the Web UI:
 | pi event | Web Chat behavior |
 |---|---|
 | `message_start/update/end` | bubbles with live typewriter streaming |
-| `tool_call` / `tool_result` | collapsible tool panels |
-| `agent_start` / `agent_settled` | status dot + send/abort button toggle |
-| `model_select` | header model tag updates in real-time |
+| `tool_call` / `tool_result` / `tool_execution_end` | collapsible tool panels (blocked/aborted calls included) |
+| `agent_start` / `agent_settled` | status dot + send/abort button toggle + abort notice |
+| `model_select` / `thinking_level_select` | header model & thinking tags update in real-time |
+| `session_info_changed` | browser tab title shows the session name |
+| `ui_prompt_start/end` | "waiting for terminal" status hint |
 
-Uplink channels: `pi.sendUserMessage()` (phone messages, including `/commands`), `ctx.abort()` (the ⏹ button), and `pi.setModel()` (bottom-sheet model picker).
+Uplink channels: `pi.sendUserMessage()` (phone messages, images, `/commands`), `ctx.abort()` (the ⏹ button), `pi.setModel()` (bottom-sheet model picker), `pi.setThinkingLevel()` (thinking picker), and `ctx.compact()` (context bar).
 
 ---
 
@@ -89,6 +94,9 @@ Uplink channels: `pi.sendUserMessage()` (phone messages, including `/commands`),
 - 📱 **原生级移动端 Chat 界面**：专为触屏优化，Markdown 排版、代码高亮、弹性自适应大输入框；
 - ⚡ **真正的实时同屏流式互动**：电脑敲字手机秒同步；手机发送指令电脑端立即干活；手机端一键"⏹ 停止"实时打断任务；
 - 🤖 **手机端直接切换模型**：点击顶栏模型标签，底部弹出模型选择器（按 provider 分组）；手机选中的模型同步应用到电脑端 pi 会话，电脑端切换也会实时镜像到手机；
+- 🧠 **思考等级切换**：🧠 标签（仅推理模型显示）六档可选，与终端双向同步；
+- 🖼️ **图片上传**：📎 按钮选图/拍照（最多 4 张，自动缩放），随消息一并发给 agent，历史图片同样回放（pi ≥ 1.x）；
+- 📊 **上下文用量条 + 一键压缩**：顶栏下方实时显示 token 用量与百分比，一键触发会话压缩；
 - 🛠️ **工具调用智能折叠**：Agent 执行 `bash` / `edit` / `read` 时自动折叠显示，点开才展开详情，不刷屏；
 - 🌐 **双通道秒级接入**：Cloudflare 临时公网穿透 URL（蜂窝网络可用）+ 局域网直连 URL（同 Wi-Fi 超低延迟）。
 
@@ -134,7 +142,7 @@ pi install git:github.com/Feng-H/pi-anywhere
 
 ### 工作原理
 
-Extension API 事件流直接驱动 Web UI：`message_start/update/end` → 气泡与打字机流式；`tool_call/result` → 折叠工具面板；`agent_start/settled` → 状态灯与发送/打断按钮切换；`model_select` → 顶栏模型标签实时同屏同步。上行三条通道：`pi.sendUserMessage()`（手机消息，含 `/命令`）、`ctx.abort()`（⏹ 打断）以及 `pi.setModel()`（手机端抽屉切模型）。
+Extension API 事件流直接驱动 Web UI：`message_start/update/end` → 气泡与打字机流式；`tool_call/result/execution_end` → 折叠工具面板（含被拦截/中止调用的兜底）；`agent_start/settled` → 状态灯与发送/打断按钮切换、中止提示；`model_select` / `thinking_level_select` → 顶栏模型与思考等级标签实时同步；`session_info_changed` → 标签页标题显示会话名；`ui_prompt_start/end` → "等待终端确认"提示。上行通道：`pi.sendUserMessage()`（手机消息、图片、`/命令`）、`ctx.abort()`（⏹ 打断）、`pi.setModel()`（手机端抽屉切模型）、`pi.setThinkingLevel()`（思考等级）、`ctx.compact()`（一键压缩）。
 
 ## License
 

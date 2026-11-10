@@ -97,7 +97,13 @@ export function startServer(port = 0, token, callbacks) {
                 try {
                     const payload = JSON.parse(data.toString());
                     if (payload.type === "send_message" && typeof payload.text === "string") {
-                        await callbacks.onUserMessage(payload.text);
+                        // 可选附带图片：[{data: base64, mimeType}]
+                        const images = Array.isArray(payload.images)
+                            ? payload.images
+                                .filter((img) => img && typeof img.data === "string" && typeof img.mimeType === "string")
+                                .slice(0, 4)
+                            : [];
+                        await callbacks.onUserMessage(payload.text, images.length > 0 ? images : undefined);
                     }
                     else if (payload.type === "abort") {
                         await callbacks.onAbort();
@@ -111,6 +117,15 @@ export function startServer(port = 0, token, callbacks) {
                             modelId: payload.modelId,
                             ...result,
                         }));
+                    }
+                    else if (payload.type === "switch_thinking_level" && typeof payload.level === "string") {
+                        const result = await callbacks.onSwitchThinkingLevel?.(payload.level)
+                            ?? { ok: false, error: "当前 pi 版本不支持 thinking level 切换" };
+                        ws.send(JSON.stringify({ type: "thinking_level_switch_result", level: payload.level, ...result }));
+                    }
+                    else if (payload.type === "compact") {
+                        const result = await callbacks.onCompact?.() ?? { ok: false, error: "不支持" };
+                        ws.send(JSON.stringify({ type: "compact_result", ...result }));
                     }
                     else if (payload.type === "ping") {
                         ws.send(JSON.stringify({ type: "pong" }));

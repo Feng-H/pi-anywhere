@@ -4,10 +4,27 @@ export interface RemoteModelInfo {
     name: string;
     reasoning: boolean;
 }
+export interface RemoteImage {
+    data: string;
+    mimeType: string;
+}
+export interface RemoteContextUsage {
+    tokens: number | null;
+    contextWindow: number;
+    percent: number | null;
+}
 export interface ServerCallbacks {
-    onUserMessage: (text: string) => void | Promise<void>;
+    onUserMessage: (text: string, images?: RemoteImage[]) => void | Promise<void>;
     onAbort: () => void | Promise<void>;
     onSwitchModel: (provider: string, modelId: string) => Promise<{
+        ok: boolean;
+        error?: string;
+    }>;
+    onSwitchThinkingLevel?: (level: string) => Promise<{
+        ok: boolean;
+        error?: string;
+    }>;
+    onCompact?: () => Promise<{
         ok: boolean;
         error?: string;
     }>;
@@ -16,7 +33,11 @@ export interface ServerCallbacks {
         isIdle: boolean;
         history: any[];
         sessionFile?: string;
+        sessionName?: string;
         models?: RemoteModelInfo[];
+        modelReasoning?: boolean;
+        thinkingLevel?: string;
+        contextUsage?: RemoteContextUsage;
     };
 }
 export interface AnywhereServer {

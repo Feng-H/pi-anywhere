@@ -27,6 +27,7 @@ export function parseSessionEntriesToMessages(entries) {
             const role = msg.role;
             if (role === "user") {
                 let text = "";
+                let images = [];
                 if (typeof msg.content === "string") {
                     text = msg.content;
                 }
@@ -35,11 +36,15 @@ export function parseSessionEntriesToMessages(entries) {
                         .filter((c) => c && c.type === "text")
                         .map((c) => c.text)
                         .join("\n");
+                    images = msg.content
+                        .filter((c) => c && c.type === "image" && c.data)
+                        .map((c) => ({ data: c.data, mimeType: c.mimeType || "image/png" }));
                 }
                 messages.push({
                     id: entry.id || String(Date.now()),
                     role: "user",
                     text,
+                    images: images.length > 0 ? images : undefined,
                     timestamp: entry.timestamp,
                 });
             }
@@ -111,4 +116,12 @@ export function extractTextFromMessage(message) {
             .join("\n");
     }
     return "";
+}
+/** 提取消息中的图片块（base64 data + mimeType），供手机端渲染 */
+export function extractImagesFromMessage(message) {
+    if (!message || !Array.isArray(message.content))
+        return [];
+    return message.content
+        .filter((c) => c && c.type === "image" && c.data)
+        .map((c) => ({ data: c.data, mimeType: c.mimeType || "image/png" }));
 }

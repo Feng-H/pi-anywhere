@@ -95,6 +95,109 @@
     .dot.offline {
       background: var(--accent-red);
     }
+    .dot.waiting {
+      background: var(--accent-amber);
+      animation: pulse 1.2s infinite;
+    }
+
+    /* 顶部上下文用量条 */
+    #ctx-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 16px 6px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.66rem;
+      color: var(--text-muted);
+      z-index: 9;
+    }
+    .ctx-track {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .ctx-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-blue);
+      transition: width .4s ease, background .3s;
+      border-radius: 2px;
+    }
+    .ctx-fill.warn { background: var(--accent-amber); }
+    .ctx-fill.danger { background: var(--accent-red); }
+    #ctx-compact-btn {
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 0.64rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #ctx-compact-btn:active { color: var(--text-primary); }
+
+    /* 思考等级标签 */
+    #thinking-display { max-width: 96px; }
+
+    /* 图片上传与气泡内图片 */
+    footer { flex-direction: column; align-items: stretch; }
+    .composer-row { display: flex; align-items: flex-end; gap: 8px; width: 100%; }
+    .action-circle-btn.attach {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      font-size: 1rem;
+    }
+    .action-circle-btn.attach:active { color: var(--text-primary); }
+    #image-preview-strip {
+      display: none;
+      gap: 8px;
+      padding: 0 0 8px;
+      width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #image-preview-strip::-webkit-scrollbar { display: none; }
+    .img-preview-item {
+      position: relative;
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+    .img-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .img-preview-item button {
+      position: absolute;
+      top: 0; right: 0;
+      width: 18px; height: 18px;
+      border: none;
+      border-radius: 0 0 0 8px;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      font-size: 0.65rem;
+      cursor: pointer;
+    }
+    .bubble-images {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .bubble-images img {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      display: block;
+    }
 
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -558,12 +661,26 @@
         <span id="connection-text">已连接</span>
       </div>
     </div>
-    <div class="model-tag" id="model-display" onclick="openModelSheet()"><span id="model-text">...</span>
-      <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-        <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <div class="model-tag" id="thinking-display" onclick="openThinkingSheet()" style="display:none"><span id="thinking-text">🧠 -</span>
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+          <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="model-tag" id="model-display" onclick="openModelSheet()"><span id="model-text">...</span>
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+          <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
     </div>
   </header>
+
+  <!-- 上下文用量条 -->
+  <div id="ctx-bar">
+    <div class="ctx-track"><div class="ctx-fill" id="ctx-fill"></div></div>
+    <span id="ctx-text">—</span>
+    <button id="ctx-compact-btn" onclick="requestCompact()">压缩</button>
+  </div>
 
   <!-- 消息内容区 -->
   <div id="messages-container"></div>
@@ -582,13 +699,19 @@
 
   <!-- 底部输入栏 -->
   <footer>
-    <div class="input-container">
-      <textarea id="chat-input" rows="1" placeholder="与 Pi 对话，或输入 /命令..."></textarea>
+    <div id="image-preview-strip"></div>
+    <div class="composer-row">
+      <button class="action-circle-btn attach" onclick="pickImages()" title="添加图片">📎</button>
+      <div class="input-container">
+        <textarea id="chat-input" rows="1" placeholder="与 Pi 对话，或输入 /命令..."></textarea>
+      </div>
+      <button id="send-btn" class="action-circle-btn" onclick="handleSendAction()">
+        <span id="send-icon">↑</span>
+      </button>
     </div>
-    <button id="send-btn" class="action-circle-btn" onclick="handleSendAction()">
-      <span id="send-icon">↑</span>
-    </button>
   </footer>
+
+  <input type="file" id="image-input" accept="image/*" multiple style="display:none">
 
   <!-- 模型选择抽屉 -->
   <div class="sheet-overlay" id="model-sheet-overlay" onclick="closeModelSheet()"></div>
@@ -596,6 +719,14 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">选择模型</div>
     <div class="model-list" id="model-list"></div>
+  </div>
+
+  <!-- 思考等级抽屉 -->
+  <div class="sheet-overlay" id="thinking-sheet-overlay" onclick="closeThinkingSheet()"></div>
+  <div class="model-sheet" id="thinking-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">思考等级</div>
+    <div class="model-list" id="thinking-list"></div>
   </div>
 
   <script>
@@ -609,6 +740,18 @@
     let currentModelId = null;
     let currentProvider = null;
     let pendingModelKey = null;
+    let currentThinkingLevel = null;
+    let modelReasoning = false;
+    let attachedImages = [];
+
+    const THINKING_LEVELS = [
+      { id: "minimal", label: "极简 · 最快" },
+      { id: "low", label: "低" },
+      { id: "medium", label: "中" },
+      { id: "high", label: "高" },
+      { id: "xhigh", label: "超高" },
+      { id: "max", label: "最高 · 最深" },
+    ];
 
     const messagesContainer = document.getElementById("messages-container");
     const chatInput = document.getElementById("chat-input");
@@ -621,6 +764,15 @@
     const modelSheet = document.getElementById("model-sheet");
     const modelSheetOverlay = document.getElementById("model-sheet-overlay");
     const modelList = document.getElementById("model-list");
+    const thinkingDisplay = document.getElementById("thinking-display");
+    const thinkingText = document.getElementById("thinking-text");
+    const thinkingSheet = document.getElementById("thinking-sheet");
+    const thinkingSheetOverlay = document.getElementById("thinking-sheet-overlay");
+    const thinkingList = document.getElementById("thinking-list");
+    const ctxFill = document.getElementById("ctx-fill");
+    const ctxText = document.getElementById("ctx-text");
+    const imageInput = document.getElementById("image-input");
+    const imagePreviewStrip = document.getElementById("image-preview-strip");
 
     // 获取 URL 参数中的 token
     const urlParams = new URLSearchParams(window.location.search);
@@ -681,6 +833,11 @@
           if (data.model) modelDisplay.innerText = data.model;
           updateCurrentModelFromRef(data.model);
           if (Array.isArray(data.models)) availableModels = data.models;
+          if (typeof data.modelReasoning === "boolean") modelReasoning = data.modelReasoning;
+          currentThinkingLevel = data.thinkingLevel || null;
+          if (data.contextUsage) updateCtxBar(data.contextUsage);
+          if (data.sessionName) setSessionName(data.sessionName);
+          renderThinkingTag();
           setAgentIdleState(data.isIdle);
           renderHistory(data.history || []);
           break;
@@ -689,6 +846,8 @@
           // 服务端确认模型已切换（含终端侧切换同步）
           updateCurrentModelFromRef(`${data.provider}/${data.modelId}`);
           modelDisplay.innerText = `${data.provider}/${data.modelId}`;
+          if (typeof data.reasoning === "boolean") modelReasoning = data.reasoning;
+          renderThinkingTag();
           pendingModelKey = null;
           renderModelList();
           closeModelSheet();
@@ -708,8 +867,35 @@
           }
           break;
 
+        case "thinking_level_update":
+          currentThinkingLevel = data.level;
+          renderThinkingTag();
+          renderThinkingList();
+          break;
+
+        case "thinking_level_switch_result":
+          if (!data.ok) alert(data.error || "思考等级切换失败");
+          break;
+
+        case "context_usage":
+          updateCtxBar(data);
+          break;
+
+        case "session_name":
+          setSessionName(data.name);
+          break;
+
+        case "compact_result":
+          if (!data.ok) alert(data.error || "压缩失败");
+          break;
+
         case "status":
-          setAgentIdleState(data.status === "idle");
+          if (data.status === "waiting_terminal") {
+            connectionDot.className = "dot waiting";
+            connectionText.innerText = "等待终端确认";
+          } else {
+            setAgentIdleState(data.status === "idle");
+          }
           break;
 
         case "message_append":
@@ -770,7 +956,18 @@
       bubble.className = "bubble";
 
       if (msg.role === "user") {
-        bubble.innerText = msg.text;
+        bubble.innerText = msg.text || (msg.images && msg.images.length ? "[图片]" : "");
+        if (msg.images && msg.images.length > 0) {
+          const grid = document.createElement("div");
+          grid.className = "bubble-images";
+          for (const img of msg.images) {
+            const im = document.createElement("img");
+            im.src = `data:${img.mimeType};base64,${img.data}`;
+            im.onclick = () => window.open(im.src, "_blank");
+            grid.appendChild(im);
+          }
+          bubble.appendChild(grid);
+        }
       } else if (msg.role === "assistant") {
         activeAssistantMsgId = msg.id;
         activeAssistantText = msg.text || "";
@@ -1003,22 +1200,23 @@
       }
 
       const text = chatInput.value.trim();
-      if (!text) return;
+      if (!text && attachedImages.length === 0) return;
 
-      sendPrompt(text);
+      sendPrompt(text, attachedImages);
+      attachedImages = [];
+      renderPreviewStrip();
       chatInput.value = "";
       chatInput.style.height = "auto";
     }
 
-    function sendPrompt(text) {
+    function sendPrompt(text, images = []) {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         alert("尚未连接到 Pi 终端");
         return;
       }
-      ws.send(JSON.stringify({
-        type: "send_message",
-        text: text
-      }));
+      const payload = { type: "send_message", text: text };
+      if (images && images.length > 0) payload.images = images;
+      ws.send(JSON.stringify(payload));
     }
 
     function insertPrompt(text) {
@@ -1038,6 +1236,182 @@
         handleSendAction();
       }
     });
+
+    // ===== 思考等级 =====
+    function renderThinkingTag() {
+      thinkingDisplay.style.display = modelReasoning ? "inline-flex" : "none";
+      thinkingText.innerText = `🧠 ${currentThinkingLevel || "-"}`;
+    }
+
+    function openThinkingSheet() {
+      renderThinkingList();
+      thinkingSheet.classList.add("show");
+      thinkingSheetOverlay.classList.add("show");
+    }
+
+    function closeThinkingSheet() {
+      thinkingSheet.classList.remove("show");
+      thinkingSheetOverlay.classList.remove("show");
+    }
+
+    function renderThinkingList() {
+      thinkingList.innerHTML = "";
+      for (const lv of THINKING_LEVELS) {
+        const item = document.createElement("div");
+        const selected = lv.id === currentThinkingLevel;
+        item.className = "model-item" + (selected ? " selected" : "");
+        item.innerHTML = `
+          <div class="model-item-info">
+            <div class="model-item-name">${lv.label}</div>
+            <div class="model-item-id">${lv.id}</div>
+          </div>
+          ${selected ? '<span class="model-item-check">✓</span>' : ""}
+        `;
+        item.onclick = () => selectThinkingLevel(lv.id);
+        thinkingList.appendChild(item);
+      }
+    }
+
+    function selectThinkingLevel(level) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("尚未连接到 Pi 终端");
+        return;
+      }
+      if (!isIdle) {
+        alert("Pi 正在思考中，请等待当前任务完成后再切换");
+        return;
+      }
+      if (level === currentThinkingLevel) {
+        closeThinkingSheet();
+        return;
+      }
+      ws.send(JSON.stringify({ type: "switch_thinking_level", level: level }));
+      closeThinkingSheet();
+    }
+
+    // ===== 上下文用量条与压缩 =====
+    function updateCtxBar(usage) {
+      if (!usage || usage.percent == null || usage.tokens == null) {
+        ctxFill.style.width = "0%";
+        ctxText.innerText = "上下文用量未知";
+        return;
+      }
+      const pct = Math.min(100, Math.max(0, Math.round(usage.percent)));
+      ctxFill.style.width = pct + "%";
+      ctxFill.className = "ctx-fill" + (pct >= 80 ? " danger" : pct >= 60 ? " warn" : "");
+      const fmt = (t) => (t >= 1000 ? `${Math.round(t / 1000)}k` : `${t}`);
+      ctxText.innerText = `上下文 ${fmt(usage.tokens)}/${fmt(usage.contextWindow)} · ${pct}%`;
+    }
+
+    function requestCompact() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("尚未连接到 Pi 终端");
+        return;
+      }
+      if (!isIdle) {
+        alert("Pi 正在思考中，请等待当前任务完成后再压缩");
+        return;
+      }
+      if (!confirm("压缩当前会话？历史将被浓缩为摘要。")) return;
+      ws.send(JSON.stringify({ type: "compact" }));
+    }
+
+    // ===== 会话名 =====
+    function setSessionName(name) {
+      document.title = name ? `${name} · Pi Anywhere` : "Pi Anywhere";
+    }
+
+    // ===== 图片上传 =====
+    function pickImages() {
+      imageInput.click();
+    }
+
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(",")[1] || "");
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(",")[1] || "");
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+    }
+
+    // 大图自动缩放（最长边 1568px，JPEG 0.85），避免隧道流量过大
+    async function processImageFile(file) {
+      if (!file.type || !file.type.startsWith("image/")) {
+        alert("仅支持图片文件");
+        return null;
+      }
+      try {
+        const bitmap = await createImageBitmap(file);
+        const MAX = 1568;
+        const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height));
+        if (scale < 1 || file.size > 1200000) {
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+          canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+          if (blob) return { data: await blobToBase64(blob), mimeType: "image/jpeg" };
+        }
+        return { data: await fileToBase64(file), mimeType: file.type };
+      } catch (e) {
+        // createImageBitmap 不可用等极端情况：直接传原图
+        try {
+          return { data: await fileToBase64(file), mimeType: file.type };
+        } catch {
+          return null;
+        }
+      }
+    }
+
+    imageInput.addEventListener("change", async () => {
+      const files = Array.from(imageInput.files || []);
+      imageInput.value = "";
+      for (const f of files) {
+        if (attachedImages.length >= 4) {
+          alert("一次最多发送 4 张图片");
+          break;
+        }
+        const img = await processImageFile(f);
+        if (img) attachedImages.push(img);
+      }
+      renderPreviewStrip();
+    });
+
+    function renderPreviewStrip() {
+      imagePreviewStrip.innerHTML = "";
+      if (attachedImages.length === 0) {
+        imagePreviewStrip.style.display = "none";
+        return;
+      }
+      imagePreviewStrip.style.display = "flex";
+      attachedImages.forEach((img, i) => {
+        const d = document.createElement("div");
+        d.className = "img-preview-item";
+        const im = document.createElement("img");
+        im.src = `data:${img.mimeType};base64,${img.data}`;
+        const btn = document.createElement("button");
+        btn.innerText = "✕";
+        btn.onclick = () => removeAttachedImage(i);
+        d.appendChild(im);
+        d.appendChild(btn);
+        imagePreviewStrip.appendChild(d);
+      });
+    }
+
+    function removeAttachedImage(i) {
+      attachedImages.splice(i, 1);
+      renderPreviewStrip();
+    }
 
     // 定期心跳
     setInterval(() => {

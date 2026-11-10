@@ -3,12 +3,74 @@ import qrcode from "qrcode-terminal";
 import chalk from "chalk";
 import { startServer } from "./server.js";
 import { startTunnel } from "./tunnel.js";
-import { parseSessionEntriesToMessages, extractTextFromMessage } from "./session-sync.js";
+import { parseSessionEntriesToMessages, extractTextFromMessage, extractImagesFromMessage } from "./session-sync.js";
 let server = null;
 let tunnel = null;
 let publicUrl = null;
 let authToken = crypto.randomBytes(6).toString("hex");
 let currentContext = null;
+// message_update 节流：避免长回复流式时每次 token 都全量广播（隧道流量放大）
+const UPDATE_THROTTLE_MS = 120;
+let lastUpdateSentAt = 0;
+let pendingUpdateTimer = null;
+let pendingUpdateId = null;
+let pendingUpdateText = "";
+// 已通过 tool_result 事件广播过结果的调用 id（tool_execution_end 兕底去重用）
+const broadcastedToolResults = new Set();
+function broadcastAssistantUpdateThrottled(id, text) {
+    const now = Date.now();
+    if (now - lastUpdateSentAt >= UPDATE_THROTTLE_MS) {
+        lastUpdateSentAt = now;
+        server?.broadcast({ type: "message_update", id, text });
+        return;
+    }
+    pendingUpdateId = id;
+    pendingUpdateText = text;
+    if (!pendingUpdateTimer) {
+        pendingUpdateTimer = setTimeout(() => {
+            pendingUpdateTimer = null;
+            lastUpdateSentAt = Date.now();
+            server?.broadcast({ type: "message_update", id: pendingUpdateId, text: pendingUpdateText });
+        }, UPDATE_THROTTLE_MS);
+    }
+}
+function flushAssistantUpdate() {
+    if (pendingUpdateTimer) {
+        clearTimeout(pendingUpdateTimer);
+        pendingUpdateTimer = null;
+    }
+}
+function toolContentToText(content) {
+    const blocks = Array.isArray(content) ? content : [];
+    return blocks
+        .map((b) => {
+        if (typeof b === "string")
+            return b;
+        if (b?.type === "text")
+            return b.text;
+        if (b?.type === "image")
+            return "[图片结果]";
+        return "";
+    })
+        .filter(Boolean)
+        .join("\n");
+}
+function broadcastContextUsage() {
+    if (!currentContext)
+        return;
+    try {
+        const usage = currentContext.getContextUsage();
+        if (usage) {
+            server?.broadcast({
+                type: "context_usage",
+                tokens: usage.tokens,
+                contextWindow: usage.contextWindow,
+                percent: usage.percent,
+            });
+        }
+    }
+    catch { }
+}
 export default function (pi) {
     // 保存活跃 context
     pi.on("session_start", (_event, ctx) => {
@@ -22,8 +84,29 @@ export default function (pi) {
     pi.on("agent_start", () => {
         server?.broadcast({ type: "status", status: "thinking" });
     });
-    pi.on("agent_settled", () => {
+    pi.on("agent_settled", (event) => {
         server?.broadcast({ type: "status", status: "idle" });
+        if (event.aborted) {
+            server?.broadcast({
+                type: "message_append",
+                message: {
+                    id: `aborted-${Date.now()}`,
+                    role: "system",
+                    text: "⏹ 任务已中止",
+                    timestamp: Date.now(),
+                },
+            });
+        }
+        broadcastedToolResults.clear();
+        broadcastContextUsage();
+    });
+    // 终端侧等待扩展 UI 交互（其他扩展的 select/confirm 弹窗等）时提示手机端
+    pi.on("ui_prompt_start", () => {
+        server?.broadcast({ type: "status", status: "waiting_terminal" });
+    });
+    pi.on("ui_prompt_end", () => {
+        const idle = currentContext ? currentContext.isIdle() : true;
+        server?.broadcast({ type: "status", status: idle ? "idle" : "thinking" });
     });
     // 终端侧切换模型时（如 /models 命令），同步到所有手机客户端
     pi.on("model_select", (event) => {
@@ -32,17 +115,29 @@ export default function (pi) {
             model: `${event.model.provider}/${event.model.id}`,
             modelId: event.model.id,
             provider: event.model.provider,
+            reasoning: !!event.model.reasoning,
         });
+        broadcastContextUsage(); // contextWindow 可能随模型变化
+    });
+    // thinking level 双向同步
+    pi.on("thinking_level_select", (event) => {
+        server?.broadcast({ type: "thinking_level_update", level: event.level });
+    });
+    // 会话名同步（/name 命令等）
+    pi.on("session_info_changed", (event) => {
+        server?.broadcast({ type: "session_name", name: event.name });
     });
     pi.on("message_start", (event) => {
         if (event.message.role === "user") {
             const text = extractTextFromMessage(event.message);
+            const images = extractImagesFromMessage(event.message);
             server?.broadcast({
                 type: "message_append",
                 message: {
                     id: event.message.id || String(Date.now()),
                     role: "user",
                     text,
+                    images: images.length > 0 ? images : undefined,
                     timestamp: Date.now(),
                 },
             });
@@ -61,22 +156,19 @@ export default function (pi) {
     });
     pi.on("message_update", (event) => {
         if (event.message.role === "assistant") {
-            const text = extractTextFromMessage(event.message);
-            server?.broadcast({
-                type: "message_update",
-                id: event.message.id,
-                text,
-            });
+            broadcastAssistantUpdateThrottled(event.message.id, extractTextFromMessage(event.message));
         }
     });
     pi.on("message_end", (event) => {
         if (event.message.role === "assistant") {
+            flushAssistantUpdate();
             const text = extractTextFromMessage(event.message);
             server?.broadcast({
                 type: "message_end",
                 id: event.message.id,
                 text,
             });
+            broadcastContextUsage();
         }
     });
     pi.on("tool_call", (event) => {
@@ -91,6 +183,7 @@ export default function (pi) {
         // pi >= 1.x: content 为 (TextContent | ImageContent)[]，isError 为顶层字段
         // pi 0.85 (legacy): result.content / result.isError
         const anyEvent = event;
+        broadcastedToolResults.add(anyEvent.toolCallId);
         const blocks = Array.isArray(anyEvent.content)
             ? anyEvent.content
             : Array.isArray(anyEvent.result?.content)
@@ -99,25 +192,42 @@ export default function (pi) {
         const isError = typeof anyEvent.isError === "boolean"
             ? anyEvent.isError
             : !!anyEvent.result?.isError;
-        const text = blocks
-            .map((b) => {
-            if (typeof b === "string")
-                return b;
-            if (b?.type === "text")
-                return b.text;
-            if (b?.type === "image")
-                return "[图片结果]";
-            return "";
-        })
-            .filter(Boolean)
-            .join("\n");
         server?.broadcast({
             type: "tool_result",
             toolCallId: anyEvent.toolCallId,
             toolName: event.toolName,
-            result: text,
+            result: toolContentToText(blocks),
             isError,
         });
+    });
+    // 兕底：被 block/aborted 或参数非法的调用不发 tool_result 事件，但会发 tool_execution_end
+    pi.on("tool_execution_end", (event) => {
+        if (broadcastedToolResults.has(event.toolCallId))
+            return;
+        broadcastedToolResults.add(event.toolCallId);
+        const text = toolContentToText(event.result?.content)
+            || (event.isError ? "调用未执行（被拦截或中止）" : "");
+        server?.broadcast({
+            type: "tool_result",
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            result: text || "调用未执行",
+            isError: !!event.isError,
+        });
+    });
+    // 压缩完成：通知手机端并刷新上下文用量
+    pi.on("session_compact", () => {
+        server?.broadcast({
+            type: "message_append",
+            message: {
+                id: `compact-${Date.now()}`,
+                role: "system",
+                text: "📦 会话已压缩，历史已浓缩为摘要",
+                timestamp: Date.now(),
+            },
+        });
+        // 刚压缩完 tokens 可能为 null（下一次 LLM 响应后才有估算），仍推送一次刷新 UI
+        broadcastContextUsage();
     });
     // 注册 /anywhere 命令
     pi.registerCommand("anywhere", {
@@ -166,7 +276,17 @@ async function startAnywhere(pi, ctx) {
     authToken = crypto.randomBytes(6).toString("hex");
     // 1. 启动 Web/WS Server
     server = await startServer(0, authToken, {
-        onUserMessage: async (text) => {
+        onUserMessage: async (text, images) => {
+            // pi >= 1.x 支持内容数组：文本 + 图片（base64 无前缀）
+            let content = text;
+            if (images && images.length > 0) {
+                content = [];
+                if (text)
+                    content.push({ type: "text", text });
+                for (const img of images) {
+                    content.push({ type: "image", data: img.data, mimeType: img.mimeType });
+                }
+            }
             // pi >= 1.2: agent 运行中必须指定 deliverAs，否则消息被拒绝
             const idle = currentContext ? currentContext.isIdle() : true;
             const options = {
@@ -175,7 +295,7 @@ async function startAnywhere(pi, ctx) {
             if (!idle) {
                 options.deliverAs = "followUp";
             }
-            pi.sendUserMessage(text, options);
+            pi.sendUserMessage(content, options);
         },
         onAbort: async () => {
             if (currentContext && !currentContext.isIdle()) {
@@ -208,10 +328,63 @@ async function startAnywhere(pi, ctx) {
                 return { ok: false, error: err?.message || String(err) };
             }
         },
+        onSwitchThinkingLevel: async (level) => {
+            try {
+                if (!currentContext) {
+                    return { ok: false, error: "无活跃会话" };
+                }
+                if (!currentContext.isIdle()) {
+                    return { ok: false, error: "Pi 正在思考中，请等待当前任务完成后再切换" };
+                }
+                pi.setThinkingLevel(level);
+                // 可能被 clamp，以实际生效值为准广播
+                const actual = pi.getThinkingLevel();
+                server?.broadcast({ type: "thinking_level_update", level: actual });
+                console.log(`[pi-anywhere] Thinking level switched via mobile: ${actual}`);
+                return { ok: true };
+            }
+            catch (err) {
+                return { ok: false, error: err?.message || String(err) };
+            }
+        },
+        onCompact: async () => {
+            if (!currentContext) {
+                return { ok: false, error: "无活跃会话" };
+            }
+            if (!currentContext.isIdle()) {
+                return { ok: false, error: "Pi 正在思考中，请等待当前任务完成后再压缩" };
+            }
+            try {
+                currentContext.compact({
+                    onError: (err) => console.error("[pi-anywhere] compact failed:", err?.message || err),
+                });
+                console.log("[pi-anywhere] Compaction triggered via mobile");
+                return { ok: true };
+            }
+            catch (err) {
+                return { ok: false, error: err?.message || String(err) };
+            }
+        },
         getInitialState: () => {
             const isIdle = currentContext ? currentContext.isIdle() : true;
             const model = currentContext?.model ? `${currentContext.model.provider}/${currentContext.model.id}` : undefined;
+            const modelReasoning = !!currentContext?.model?.reasoning;
             const sessionFile = currentContext?.sessionManager.getSessionFile();
+            let sessionName;
+            try {
+                sessionName = currentContext?.sessionManager.getSessionName?.() || undefined;
+            }
+            catch { }
+            let thinkingLevel;
+            try {
+                thinkingLevel = currentContext?.thinkingLevel || pi.getThinkingLevel();
+            }
+            catch { }
+            let contextUsage;
+            try {
+                contextUsage = currentContext?.getContextUsage?.();
+            }
+            catch { }
             const models = getSelectableModels();
             let history = [];
             try {
@@ -224,7 +397,11 @@ async function startAnywhere(pi, ctx) {
             return {
                 isIdle,
                 model,
+                modelReasoning,
                 sessionFile,
+                sessionName,
+                thinkingLevel,
+                contextUsage,
                 models,
                 history,
             };

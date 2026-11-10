@@ -7,10 +7,16 @@ export interface ChatToolCall {
   status: "running" | "done" | "error";
 }
 
+export interface ChatImage {
+  data: string;
+  mimeType: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
   text: string;
+  images?: ChatImage[];
   toolCalls?: ChatToolCall[];
   timestamp?: number | string;
 }
@@ -48,6 +54,7 @@ export function parseSessionEntriesToMessages(entries: any[]): ChatMessage[] {
 
       if (role === "user") {
         let text = "";
+        let images: ChatImage[] = [];
         if (typeof msg.content === "string") {
           text = msg.content;
         } else if (Array.isArray(msg.content)) {
@@ -55,11 +62,15 @@ export function parseSessionEntriesToMessages(entries: any[]): ChatMessage[] {
             .filter((c: any) => c && c.type === "text")
             .map((c: any) => c.text)
             .join("\n");
+          images = msg.content
+            .filter((c: any) => c && c.type === "image" && c.data)
+            .map((c: any) => ({ data: c.data, mimeType: c.mimeType || "image/png" }));
         }
         messages.push({
           id: entry.id || String(Date.now()),
           role: "user",
           text,
+          images: images.length > 0 ? images : undefined,
           timestamp: entry.timestamp,
         });
       } else if (role === "assistant") {
@@ -128,4 +139,12 @@ export function extractTextFromMessage(message: any): string {
       .join("\n");
   }
   return "";
+}
+
+/** 提取消息中的图片块（base64 data + mimeType），供手机端渲染 */
+export function extractImagesFromMessage(message: any): ChatImage[] {
+  if (!message || !Array.isArray(message.content)) return [];
+  return message.content
+    .filter((c: any) => c && c.type === "image" && c.data)
+    .map((c: any) => ({ data: c.data, mimeType: c.mimeType || "image/png" }));
 }
